@@ -32,6 +32,11 @@ def get_db() -> Database:
     return Database(DB_PATH)
 
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
 @app.get("/")
 def root():
     return {"name": "Footnote", "version": "0.1.0", "status": "ok"}
