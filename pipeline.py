@@ -10,10 +10,9 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-# Add component dirs to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scanner.scan import load_repos, scan_repo, get_head_sha
+from scanner.scan import load_repos, scan_repo
 from scorer.score import score_diffs
 from api.database import Database
 
@@ -23,13 +22,14 @@ log = logging.getLogger("footnote.pipeline")
 
 def run_pipeline(
     config_path: str = "repos.json",
+    data_dir: str = "/data/repos",
     db_path: str = "/data/db/footnote.db",
     backfill_days: int = 30,
-    github_token: str = None,
+    clone_depth: int = 6000,
     local_url: str = None,
     local_model: str = "gemma4:26b",
     cloud_url: str = None,
-    cloud_model: str = "kimi-k2.5:cloud",
+    cloud_model: str = "grok-3-mini",
     cloud_key: str = None,
     prefilter_threshold: int = 3,
 ):
@@ -51,21 +51,19 @@ def run_pipeline(
             else:
                 log.info(f"First scan — backfilling {backfill_days} days")
 
-            # Scan via GitHub API (no git clone needed!)
-            diffs = scan_repo(
+            # Scan (git-based, fast after initial clone)
+            diffs, head_hash = scan_repo(
                 repo_config,
                 since_hash=last_hash,
                 since_days=backfill_days,
-                token=github_token,
+                base_dir=data_dir,
+                clone_depth=clone_depth,
             )
 
             if not diffs:
                 log.info("No new meaningful diffs found")
-                # Still record the scan with current HEAD
-                head = get_head_sha(repo_config, token=github_token)
-                if head:
-                    db.create_scan(repo=repo_config.name, commit_hash=head,
-                                   commits_found=0, commits_scored=0)
+                db.create_scan(repo=repo_config.name, commit_hash=head_hash,
+                               commits_found=0, commits_scored=0)
                 continue
 
             # Score
@@ -80,15 +78,10 @@ def run_pipeline(
                 cloud_key=cloud_key,
             )
 
-            # Get current HEAD hash
-            head = get_head_sha(repo_config, token=github_token)
-            if not head:
-                head = diffs[0].commit_hash  # Use latest diff commit as fallback
-
             # Store
             scan_id = db.create_scan(
                 repo=repo_config.name,
-                commit_hash=head,
+                commit_hash=head_hash,
                 commits_found=len(diffs),
                 commits_scored=len(scored),
             )
@@ -115,13 +108,14 @@ def run_pipeline(
 if __name__ == "__main__":
     run_pipeline(
         config_path=os.environ.get("CONFIG_PATH", "repos.json"),
+        data_dir=os.environ.get("DATA_DIR", "/data/repos"),
         db_path=os.environ.get("DB_PATH", "/data/db/footnote.db"),
         backfill_days=int(os.environ.get("BACKFILL_DAYS", "30")),
-        github_token=os.environ.get("GITHUB_TOKEN"),
+        clone_depth=int(os.environ.get("CLONE_DEPTH", "6000")),
         local_url=os.environ.get("GEMMA_URL"),
         local_model=os.environ.get("LOCAL_MODEL", "gemma4:26b"),
         cloud_url=os.environ.get("CLOUD_BASE_URL"),
-        cloud_model=os.environ.get("CLOUD_MODEL", "kimi-k2.5:cloud"),
+        cloud_model=os.environ.get("CLOUD_MODEL", "grok-3-mini"),
         cloud_key=os.environ.get("CLOUD_API_KEY"),
         prefilter_threshold=int(os.environ.get("PREFILTER_THRESHOLD", "3")),
     )

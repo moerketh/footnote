@@ -17,12 +17,15 @@ services:
     command: python pipeline.py
     volumes:
       - db-data:/data/db
+      - repo-data:/data/repos
     environment:
       - DB_PATH=/data/db/footnote.db
+      - DATA_DIR=/data/repos
       - CONFIG_PATH=repos.json
       - BACKFILL_DAYS=${BACKFILL_DAYS:-30}
+      - CLONE_DEPTH=${CLONE_DEPTH:-6000}
       - CLOUD_BASE_URL=${CLOUD_BASE_URL}
-      - CLOUD_MODEL=${CLOUD_MODEL:-kimi-k2.5:cloud}
+      - CLOUD_MODEL=${CLOUD_MODEL:-grok-3-mini}
       - CLOUD_API_KEY=${CLOUD_API_KEY}
       - GEMMA_URL=${GEMMA_URL:-}
       - LOCAL_MODEL=${LOCAL_MODEL:-gemma4:26b}
@@ -33,3 +36,4 @@ services:
 
 volumes:
   db-data:
+  repo-data:
