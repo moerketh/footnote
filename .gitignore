@@ -1,0 +1,38 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+venv/
+.venv/
+
+# Node/Svelte
+node_modules/
+web/build/
+web/.svelte-kit/
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+secrets/

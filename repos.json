@@ -1,0 +1,22 @@
+{
+  "repos": [
+    {
+      "url": "https://github.com/MicrosoftDocs/azure-docs",
+      "branch": "main",
+      "name": "azure-docs",
+      "enabled": true
+    },
+    {
+      "url": "https://github.com/MicrosoftDocs/entra-docs",
+      "branch": "main",
+      "name": "entra-docs",
+      "enabled": false
+    },
+    {
+      "url": "https://github.com/MicrosoftDocs/azure-docs-powershell",
+      "branch": "main",
+      "name": "azure-docs-powershell",
+      "enabled": false
+    }
+  ]
+}
