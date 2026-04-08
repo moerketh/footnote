@@ -1,20 +1,20 @@
 """
-Footnote Scanner — Git diff extraction and pre-filtering.
+Footnote Scanner — GitHub API-based diff extraction and pre-filtering.
 
-Clones/pulls documentation repos, extracts diffs from new commits,
-and pre-filters noise before sending to the scorer.
+Uses the GitHub REST API instead of git clone to avoid downloading
+massive repos. Fetches commit lists and diffs directly.
 """
 
 import json
 import os
 import re
 import logging
+import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Optional
 
-from git import Repo, GitCommandError
+import requests
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("footnote.scanner")
@@ -26,6 +26,13 @@ class RepoConfig:
     branch: str
     name: str
     enabled: bool = True
+
+    @property
+    def owner_repo(self) -> str:
+        """Extract 'owner/repo' from GitHub URL."""
+        # https://github.com/MicrosoftDocs/azure-docs -> MicrosoftDocs/azure-docs
+        parts = self.url.rstrip("/").split("/")
+        return f"{parts[-2]}/{parts[-1]}"
 
 
 @dataclass
@@ -68,6 +75,81 @@ NOISE_COMMIT_PATTERNS = [
 ]
 
 
+class GitHubAPI:
+    """Lightweight GitHub REST API client."""
+
+    BASE = "https://api.github.com"
+
+    def __init__(self, token: Optional[str] = None):
+        self.session = requests.Session()
+        self.session.headers["Accept"] = "application/vnd.github.v3+json"
+        self.session.headers["User-Agent"] = "footnote-scanner/0.1"
+        if token:
+            self.session.headers["Authorization"] = f"Bearer {token}"
+        self.rate_remaining = 5000
+        self.rate_reset = 0
+
+    def _request(self, endpoint: str, **kwargs) -> Optional[dict | list]:
+        """Make a rate-limit-aware API request."""
+        if self.rate_remaining < 10:
+            wait = max(0, self.rate_reset - time.time()) + 1
+            log.warning(f"Rate limit low ({self.rate_remaining}), sleeping {wait:.0f}s")
+            time.sleep(wait)
+
+        url = f"{self.BASE}{endpoint}" if endpoint.startswith("/") else endpoint
+        resp = self.session.get(url, **kwargs)
+
+        # Update rate limit info
+        self.rate_remaining = int(resp.headers.get("X-RateLimit-Remaining", 5000))
+        self.rate_reset = int(resp.headers.get("X-RateLimit-Reset", 0))
+
+        if resp.status_code == 200:
+            return resp.json()
+        elif resp.status_code == 422:
+            log.warning(f"GitHub API 422 for {endpoint}: {resp.text[:200]}")
+            return None
+        elif resp.status_code in (403, 429):
+            wait = max(0, self.rate_reset - time.time()) + 5
+            log.warning(f"Rate limited, sleeping {wait:.0f}s")
+            time.sleep(wait)
+            return self._request(endpoint, **kwargs)
+        else:
+            log.error(f"GitHub API {resp.status_code}: {resp.text[:200]}")
+            return None
+
+    def list_commits(self, owner_repo: str, since: str,
+                     branch: str = "main", per_page: int = 100,
+                     max_pages: int = 10) -> list[dict]:
+        """List commits since a date. Returns list of commit objects."""
+        commits = []
+        page = 1
+
+        while page <= max_pages:
+            data = self._request(
+                f"/repos/{owner_repo}/commits",
+                params={
+                    "sha": branch,
+                    "since": since,
+                    "per_page": per_page,
+                    "page": page,
+                }
+            )
+            if not data:
+                break
+
+            commits.extend(data)
+
+            if len(data) < per_page:
+                break
+            page += 1
+
+        return commits
+
+    def get_commit(self, owner_repo: str, sha: str) -> Optional[dict]:
+        """Get a single commit with diff/patch info."""
+        return self._request(f"/repos/{owner_repo}/commits/{sha}")
+
+
 def load_repos(config_path: str = "repos.json") -> list[RepoConfig]:
     """Load repository configurations."""
     with open(config_path) as f:
@@ -75,74 +157,11 @@ def load_repos(config_path: str = "repos.json") -> list[RepoConfig]:
     return [RepoConfig(**r) for r in data["repos"] if r.get("enabled", True)]
 
 
-def clone_or_pull(repo_config: RepoConfig, base_dir: str = "/data/repos") -> Repo:
-    """Clone a repo if it doesn't exist, or pull latest changes."""
-    repo_path = Path(base_dir) / repo_config.name
-
-    if repo_path.exists() and (repo_path / ".git").exists():
-        log.info(f"Pulling latest for {repo_config.name}...")
-        repo = Repo(repo_path)
-        origin = repo.remotes.origin
-        try:
-            origin.fetch()
-            repo.git.reset("--hard", f"origin/{repo_config.branch}")
-        except GitCommandError as e:
-            log.error(f"Failed to pull {repo_config.name}: {e}")
-            raise
-    else:
-        log.info(f"Cloning {repo_config.name} (shallow)...")
-        repo_path.mkdir(parents=True, exist_ok=True)
-        token = os.environ.get("GITHUB_TOKEN", "")
-        url = repo_config.url
-        if token and "github.com" in url:
-            url = url.replace("https://", f"https://x-access-token:{token}@")
-        repo = Repo.clone_from(
-            url,
-            repo_path,
-            branch=repo_config.branch,
-            depth=1,
-            single_branch=True,
-        )
-
-    return repo
-
-
-def get_new_commits(repo: Repo, since_hash: Optional[str] = None,
-                    since_days: int = 30, max_commits: int = 500) -> list:
-    """Get commits since a hash or time window."""
-    if since_hash:
-        try:
-            # Unshallow if needed to access history
-            try:
-                repo.git.fetch("--unshallow")
-            except GitCommandError:
-                pass  # Already unshallowed
-
-            commits = list(repo.iter_commits(f"{since_hash}..HEAD", max_count=max_commits))
-            log.info(f"Found {len(commits)} new commits since {since_hash[:8]}")
-            return commits
-        except GitCommandError:
-            log.warning(f"Hash {since_hash} not found, falling back to time-based")
-
-    # Time-based fallback
-    since_date = datetime.now(timezone.utc) - timedelta(days=since_days)
-    since_str = since_date.strftime("%Y-%m-%d")
-
-    try:
-        repo.git.fetch("--unshallow")
-    except GitCommandError:
-        pass
-
-    commits = list(repo.iter_commits("HEAD", since=since_str, max_count=max_commits))
-    log.info(f"Found {len(commits)} commits in last {since_days} days")
-    return commits
-
-
-def is_noise_commit(commit) -> bool:
+def is_noise_commit(message: str) -> bool:
     """Check if a commit message indicates noise."""
-    msg = commit.message.strip().split("\n")[0]  # First line only
+    first_line = message.strip().split("\n")[0]
     for pattern in NOISE_COMMIT_PATTERNS:
-        if re.search(pattern, msg):
+        if re.search(pattern, first_line):
             return True
     return False
 
@@ -158,76 +177,62 @@ def is_noise_file(filepath: str) -> bool:
     return False
 
 
-def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[CommitDiff]:
-    """Extract and filter diff from a single commit."""
-    if is_noise_commit(commit):
-        log.debug(f"Skipping noise commit: {commit.hexsha[:8]} {commit.message.strip()[:60]}")
+def extract_commit_diff(api: GitHubAPI, owner_repo: str,
+                        commit_summary: dict, max_diff_size: int = 50000) -> Optional[CommitDiff]:
+    """Extract and filter diff from a single commit via GitHub API."""
+    sha = commit_summary["sha"]
+    message = commit_summary["commit"]["message"]
+    author = commit_summary["commit"]["author"]["name"]
+    date = commit_summary["commit"]["author"]["date"]
+
+    if is_noise_commit(message):
+        log.debug(f"Skipping noise commit: {sha[:8]} {message[:60]}")
         return None
 
-    # Get parent (handle initial commit)
-    if not commit.parents:
-        return None
-    parent = commit.parents[0]
-
-    try:
-        diffs = parent.diff(commit, create_patch=True)
-    except Exception as e:
-        log.warning(f"Failed to diff {commit.hexsha[:8]}: {e}")
+    # Fetch full commit with file diffs
+    detail = api.get_commit(owner_repo, sha)
+    if not detail or "files" not in detail:
         return None
 
-    # Filter files and build diff text
     filtered_files = []
     diff_parts = []
     total_additions = 0
     total_deletions = 0
 
-    for d in diffs:
-        filepath = d.b_path or d.a_path
+    for f in detail["files"]:
+        filepath = f["filename"]
         if is_noise_file(filepath):
             continue
-
-        # Only care about markdown and YAML config files
         if not filepath.endswith((".md", ".yml", ".yaml")):
             continue
 
         filtered_files.append(filepath)
+        total_additions += f.get("additions", 0)
+        total_deletions += f.get("deletions", 0)
 
-        try:
-            patch = d.diff.decode("utf-8", errors="replace")
-        except Exception:
-            patch = str(d.diff)
-
-        # Count meaningful lines
-        for line in patch.split("\n"):
-            if line.startswith("+") and not line.startswith("+++"):
-                total_additions += 1
-            elif line.startswith("-") and not line.startswith("---"):
-                total_deletions += 1
-
-        diff_parts.append(f"--- {d.a_path}\n+++ {d.b_path}\n{patch}")
+        patch = f.get("patch", "")
+        if patch:
+            diff_parts.append(f"--- {filepath}\n+++ {filepath}\n{patch}")
 
     # Skip if no meaningful files changed
     if not filtered_files:
-        log.debug(f"Skipping commit with no meaningful files: {commit.hexsha[:8]}")
         return None
 
     # Skip trivial changes (< 3 meaningful lines)
     if total_additions + total_deletions < 3:
-        log.debug(f"Skipping trivial commit: {commit.hexsha[:8]} (+{total_additions}/-{total_deletions})")
+        log.debug(f"Skipping trivial commit: {sha[:8]} (+{total_additions}/-{total_deletions})")
         return None
 
     diff_text = "\n".join(diff_parts)
-
-    # Truncate if too large
     if len(diff_text) > max_diff_size:
         diff_text = diff_text[:max_diff_size] + "\n\n[... truncated ...]"
 
     return CommitDiff(
         repo_name="",  # Set by caller
-        commit_hash=commit.hexsha,
-        commit_date=datetime.fromtimestamp(commit.committed_date, tz=timezone.utc).isoformat(),
-        commit_message=commit.message.strip(),
-        author=str(commit.author),
+        commit_hash=sha,
+        commit_date=date,
+        commit_message=message.strip(),
+        author=author,
         files_changed=filtered_files,
         diff_text=diff_text,
         stats={
@@ -239,26 +244,61 @@ def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[Com
 
 
 def scan_repo(repo_config: RepoConfig, since_hash: Optional[str] = None,
-              since_days: int = 30, base_dir: str = "/data/repos") -> list[CommitDiff]:
-    """Full scan pipeline for a single repo."""
+              since_days: int = 30, token: Optional[str] = None) -> list[CommitDiff]:
+    """Full scan pipeline for a single repo using GitHub API."""
     log.info(f"=== Scanning {repo_config.name} ===")
 
-    repo = clone_or_pull(repo_config, base_dir)
-    commits = get_new_commits(repo, since_hash=since_hash, since_days=since_days)
+    api = GitHubAPI(token=token)
+    owner_repo = repo_config.owner_repo
+
+    # Determine since date
+    since_date = datetime.now(timezone.utc) - timedelta(days=since_days)
+    since_str = since_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Get commit list
+    log.info(f"Fetching commits since {since_str}...")
+    commits = api.list_commits(owner_repo, since=since_str, branch=repo_config.branch)
+    log.info(f"Found {len(commits)} commits")
+
+    # If we have a since_hash, skip commits we've already seen
+    if since_hash:
+        new_commits = []
+        for c in commits:
+            if c["sha"] == since_hash:
+                break
+            new_commits.append(c)
+        commits = new_commits
+        log.info(f"After filtering since {since_hash[:8]}: {len(commits)} new commits")
 
     results = []
     skipped = 0
 
-    for commit in commits:
-        diff = extract_diff(repo, commit)
+    for i, commit_summary in enumerate(commits):
+        if i % 50 == 0 and i > 0:
+            log.info(f"Progress: {i}/{len(commits)} commits processed, {len(results)} diffs extracted")
+
+        diff = extract_commit_diff(api, owner_repo, commit_summary)
         if diff:
             diff.repo_name = repo_config.name
             results.append(diff)
         else:
             skipped += 1
 
+        # Respect rate limits — small delay between commit detail fetches
+        if i % 30 == 0 and i > 0:
+            log.info(f"Rate limit remaining: {api.rate_remaining}")
+            if api.rate_remaining < 100:
+                time.sleep(2)
+
     log.info(f"Extracted {len(results)} meaningful diffs, skipped {skipped}")
     return results
+
+
+def get_head_sha(repo_config: RepoConfig, token: Optional[str] = None) -> Optional[str]:
+    """Get the current HEAD SHA for a repo branch."""
+    api = GitHubAPI(token=token)
+    data = api._request(f"/repos/{repo_config.owner_repo}/commits/{repo_config.branch}")
+    return data["sha"] if data else None
 
 
 if __name__ == "__main__":
@@ -266,16 +306,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Footnote Scanner")
     parser.add_argument("--config", default="repos.json", help="Repo config file")
-    parser.add_argument("--data-dir", default="/data/repos", help="Base dir for cloned repos")
     parser.add_argument("--since-days", type=int, default=30, help="Backfill window in days")
     parser.add_argument("--output", default="-", help="Output file (- for stdout)")
+    parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN"), help="GitHub token")
     args = parser.parse_args()
 
     repos = load_repos(args.config)
     all_diffs = []
 
     for rc in repos:
-        diffs = scan_repo(rc, since_days=args.since_days, base_dir=args.data_dir)
+        diffs = scan_repo(rc, since_days=args.since_days, token=args.token)
         all_diffs.extend(diffs)
 
     output = json.dumps([asdict(d) for d in all_diffs], indent=2, default=str)

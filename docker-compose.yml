@@ -17,10 +17,8 @@ services:
     command: python pipeline.py
     volumes:
       - db-data:/data/db
-      - repo-data:/data/repos
     environment:
       - DB_PATH=/data/db/footnote.db
-      - DATA_DIR=/data/repos
       - CONFIG_PATH=repos.json
       - BACKFILL_DAYS=${BACKFILL_DAYS:-30}
       - CLOUD_BASE_URL=${CLOUD_BASE_URL}
@@ -35,4 +33,3 @@ services:
 
 volumes:
   db-data:
-  repo-data:

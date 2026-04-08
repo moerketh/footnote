@@ -10,12 +10,10 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-# Add parent dirs to path
-sys.path.insert(0, str(Path(__file__).parent / "scanner"))
-sys.path.insert(0, str(Path(__file__).parent / "scorer"))
-sys.path.insert(0, str(Path(__file__).parent / "api"))
+# Add component dirs to path
+sys.path.insert(0, str(Path(__file__).parent))
 
-from scanner.scan import load_repos, scan_repo
+from scanner.scan import load_repos, scan_repo, get_head_sha
 from scorer.score import score_diffs
 from api.database import Database
 
@@ -25,9 +23,9 @@ log = logging.getLogger("footnote.pipeline")
 
 def run_pipeline(
     config_path: str = "repos.json",
-    data_dir: str = "/data/repos",
     db_path: str = "/data/db/footnote.db",
     backfill_days: int = 30,
+    github_token: str = None,
     local_url: str = None,
     local_model: str = "gemma4:26b",
     cloud_url: str = None,
@@ -53,16 +51,21 @@ def run_pipeline(
             else:
                 log.info(f"First scan — backfilling {backfill_days} days")
 
-            # Scan
+            # Scan via GitHub API (no git clone needed!)
             diffs = scan_repo(
                 repo_config,
                 since_hash=last_hash,
                 since_days=backfill_days,
-                base_dir=data_dir,
+                token=github_token,
             )
 
             if not diffs:
                 log.info("No new meaningful diffs found")
+                # Still record the scan with current HEAD
+                head = get_head_sha(repo_config, token=github_token)
+                if head:
+                    db.create_scan(repo=repo_config.name, commit_hash=head,
+                                   commits_found=0, commits_scored=0)
                 continue
 
             # Score
@@ -78,14 +81,14 @@ def run_pipeline(
             )
 
             # Get current HEAD hash
-            from git import Repo
-            repo_path = Path(data_dir) / repo_config.name
-            head_hash = Repo(repo_path).head.commit.hexsha
+            head = get_head_sha(repo_config, token=github_token)
+            if not head:
+                head = diffs[0].commit_hash  # Use latest diff commit as fallback
 
             # Store
             scan_id = db.create_scan(
                 repo=repo_config.name,
-                commit_hash=head_hash,
+                commit_hash=head,
                 commits_found=len(diffs),
                 commits_scored=len(scored),
             )
@@ -112,9 +115,9 @@ def run_pipeline(
 if __name__ == "__main__":
     run_pipeline(
         config_path=os.environ.get("CONFIG_PATH", "repos.json"),
-        data_dir=os.environ.get("DATA_DIR", "/data/repos"),
         db_path=os.environ.get("DB_PATH", "/data/db/footnote.db"),
         backfill_days=int(os.environ.get("BACKFILL_DAYS", "30")),
+        github_token=os.environ.get("GITHUB_TOKEN"),
         local_url=os.environ.get("GEMMA_URL"),
         local_model=os.environ.get("LOCAL_MODEL", "gemma4:26b"),
         cloud_url=os.environ.get("CLOUD_BASE_URL"),
