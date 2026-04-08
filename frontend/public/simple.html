@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Footnote - Security Change Tracker</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        h1 { color: #58a6ff; }
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .score {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .score.high { background: #da3633; color: white; }
+        .score.medium { background: #d29922; color: #0d1117; }
+        .score.low { background: #2ea043; color: white; }
+        .score.info { background: #8b949e; color: #0d1117; }
+        .message { margin: 0.5rem 0; }
+        .meta { color: #8b949e; font-size: 0.9rem; }
+        .loading { text-align: center; padding: 2rem; }
+    </style>
+</head>
+<body>
+    <h1>📖 Footnote</h1>
+    <p>The real story is in the footnotes</p>
+    <div id="content">
+        <div class="loading">Loading changes...</div>
+    </div>
+
+    <script>
+        // Simple fetch and render
+        async function loadChanges() {
+            try {
+                const res = await fetch('/changes?limit=50');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const changes = data.changes || [];
+
+                const html = changes.map(c => {
+                    const scoreClass = c.llm_score >= 8 ? 'high' : 
+                                      c.llm_score >= 5 ? 'medium' : 
+                                      c.llm_score >= 3 ? 'low' : 'info';
+                    return `
+                        <div class="card">
+                            <div>
+                                <span class="score ${scoreClass}">${c.llm_score || 0}</span>
+                                <strong>${c.risk_level}</strong>
+                            </div>
+                            <div class="message">${(c.commit_message || '').split('\n')[0]}</div>
+                            <div class="meta">
+                                ${c.commit_hash?.slice(0,8)} | 
+                                ${c.author} | 
+                                ${new Date(c.commit_date).toLocaleDateString()}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('content').innerHTML = 
+                    `<p>Showing ${changes.length} changes</p>` + html;
+            } catch (err) {
+                document.getElementById('content').innerHTML = 
+                    `<p style="color: #f85149">Error: ${err.message}</p>
+                     <p><a href="/changes?limit=10" style="color: #58a6ff">Try direct API link</a></p>`;
+            }
+        }
+
+        loadChanges();
+    </script>
+</body>
+</html>

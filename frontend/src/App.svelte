@@ -4,25 +4,20 @@
   import ChangeDetail from './lib/ChangeDetail.svelte';
   import Stats from './lib/Stats.svelte';
 
-  // API base URL - relative for same-domain deployment
-  const API_URL = import.meta.env.VITE_API_URL || '';
+  const API_URL = '';
 
   let changes = [];
   let stats = null;
-  let loading = true;
+  let loading = false;
   let error = null;
   let selectedChange = null;
-  let view = 'list'; // 'list', 'detail', 'stats'
-  let mounted = false;
+  let view = 'list';
 
-  // Filters
   let minScore = 0;
   let riskLevel = '';
   let searchQuery = '';
-  let repo = '';
 
   async function fetchChanges() {
-    if (!mounted) return;
     loading = true;
     error = null;
     try {
@@ -30,18 +25,14 @@
       if (minScore > 0) params.append('min_score', minScore);
       if (riskLevel) params.append('risk_level', riskLevel);
       if (searchQuery) params.append('search', searchQuery);
-      if (repo) params.append('repo', repo);
 
       const url = `${API_URL}/changes?${params}`;
-      console.log('Fetching:', url);
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       changes = data.changes || [];
-      console.log('Fetched', changes.length, 'changes');
     } catch (err) {
       error = err.message;
-      console.error('Fetch error:', err);
     } finally {
       loading = false;
     }
@@ -53,7 +44,7 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       stats = await res.json();
     } catch (err) {
-      console.error('Failed to fetch stats:', err);
+      console.error('Stats error:', err);
     }
   }
 
@@ -67,22 +58,21 @@
     view = 'list';
   }
 
+  onMount(() => {
+    fetchChanges();
+    fetchStats();
+  });
+
+  function handleFilterChange() {
+    fetchChanges();
+  }
+
   function showStats() {
     view = 'stats';
   }
 
   function showList() {
     view = 'list';
-  }
-
-  onMount(() => {
-    mounted = true;
-    fetchChanges();
-    fetchStats();
-  });
-
-  $: if (mounted && (minScore !== undefined || riskLevel !== undefined || searchQuery !== undefined || repo !== undefined)) {
-    fetchChanges();
   }
 </script>
 
@@ -102,13 +92,13 @@
     <div class="filters">
       <div class="filter-group">
         <label>Min Score:</label>
-        <input type="range" min="0" max="10" step="1" bind:value={minScore} />
+        <input type="range" min="0" max="10" step="1" bind:value={minScore} on:change={handleFilterChange} />
         <span class="score-badge">{minScore}</span>
       </div>
 
       <div class="filter-group">
         <label>Risk:</label>
-        <select bind:value={riskLevel}>
+        <select bind:value={riskLevel} on:change={handleFilterChange}>
           <option value="">All</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
@@ -118,7 +108,7 @@
       </div>
 
       <div class="filter-group search">
-        <input type="text" placeholder="Search commits..." bind:value={searchQuery} />
+        <input type="text" placeholder="Search commits..." bind:value={searchQuery} on:input={handleFilterChange} />
       </div>
     </div>
 
