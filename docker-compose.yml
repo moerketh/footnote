@@ -1,0 +1,38 @@
+services:
+  api:
+    build: .
+    command: python api/main.py
+    ports:
+      - "8000:8000"
+    volumes:
+      - db-data:/data/db
+    environment:
+      - DB_PATH=/data/db/footnote.db
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    restart: unless-stopped
+
+  pipeline:
+    build: .
+    command: python pipeline.py
+    volumes:
+      - db-data:/data/db
+      - repo-data:/data/repos
+    environment:
+      - DB_PATH=/data/db/footnote.db
+      - DATA_DIR=/data/repos
+      - CONFIG_PATH=repos.json
+      - BACKFILL_DAYS=${BACKFILL_DAYS:-30}
+      - CLOUD_BASE_URL=${CLOUD_BASE_URL}
+      - CLOUD_MODEL=${CLOUD_MODEL:-kimi-k2.5:cloud}
+      - CLOUD_API_KEY=${CLOUD_API_KEY}
+      - GEMMA_URL=${GEMMA_URL:-}
+      - LOCAL_MODEL=${LOCAL_MODEL:-gemma4:26b}
+      - PREFILTER_THRESHOLD=${PREFILTER_THRESHOLD:-3}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    profiles:
+      - pipeline
+
+volumes:
+  db-data:
+  repo-data:
