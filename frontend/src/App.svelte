@@ -13,6 +13,7 @@
   let error = null;
   let selectedChange = null;
   let view = 'list'; // 'list', 'detail', 'stats'
+  let mounted = false;
 
   // Filters
   let minScore = 0;
@@ -21,6 +22,7 @@
   let repo = '';
 
   async function fetchChanges() {
+    if (!mounted) return;
     loading = true;
     error = null;
     try {
@@ -31,12 +33,15 @@
       if (repo) params.append('repo', repo);
 
       const url = `${API_URL}/changes?${params}`;
+      console.log('Fetching:', url);
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       const data = await res.json();
       changes = data.changes || [];
+      console.log('Fetched', changes.length, 'changes');
     } catch (err) {
       error = err.message;
+      console.error('Fetch error:', err);
     } finally {
       loading = false;
     }
@@ -71,11 +76,12 @@
   }
 
   onMount(() => {
+    mounted = true;
     fetchChanges();
     fetchStats();
   });
 
-  $: if (minScore !== undefined || riskLevel !== undefined || searchQuery !== undefined || repo !== undefined) {
+  $: if (mounted && (minScore !== undefined || riskLevel !== undefined || searchQuery !== undefined || repo !== undefined)) {
     fetchChanges();
   }
 </script>
@@ -132,7 +138,7 @@
   {/if}
 
   <footer class="footer">
-    <p>API: {API_URL}</p>
+    <p>API: {API_URL || '(same domain)'}</p>
   </footer>
 </main>
 
