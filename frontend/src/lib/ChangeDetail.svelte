@@ -61,8 +61,8 @@
         <h2>{change.commit_message?.split('\n')[0] || 'Untitled Change'}</h2>
       </div>
 
-      <div class="score-badge {getScoreClass(change.llm_score || 0)}">
-        <div class="score-value">{change.llm_score || 0}</div>
+      <div class="score-badge {getScoreClass(change.score || 0)}">
+        <div class="score-value">{change.score || 0}</div>
         <div class="score-label">Security Score</div>
       </div>
     </header>
@@ -125,12 +125,6 @@
       </section>
     {/if}
 
-    {#if change.llm_rationale}
-      <section class="rationale">
-        <h3>🤖 LLM Rationale</h3>
-        <p>{change.llm_rationale}</p>
-      </section>
-    {/if}
   </div>
 {/if}
 

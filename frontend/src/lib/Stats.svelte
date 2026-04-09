@@ -1,6 +1,5 @@
 <script>
-  export let stats = null;
-  export let onBack = () => {};
+  let { stats = null, onBack = () => {} } = $props();
 
   function getRiskColor(level) {
     const colors = {
@@ -12,9 +11,9 @@
     return colors[level] || '#8b949e';
   }
 
-  $: riskData = stats?.by_risk_level ? Object.entries(stats.by_risk_level) : [];
-  $: repoData = stats?.by_repo ? Object.entries(stats.by_repo) : [];
-  $: maxRisk = riskData.length > 0 ? Math.max(...riskData.map(([,v]) => v)) : 1;
+  let riskData = $derived(stats?.by_risk_level ? Object.entries(stats.by_risk_level) : []);
+  let repoData = $derived(stats?.by_repo ? Object.entries(stats.by_repo) : []);
+  let maxRisk = $derived(riskData.length > 0 ? Math.max(...riskData.map(([,v]) => v)) : 1);
 </script>
 
 <div class="stats-view">

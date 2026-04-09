@@ -37,8 +37,8 @@
       <div class="change-card" on:click={() => onSelect(change)}>
         <div class="card-header">
           <div class="score-section">
-            <span class="score {getScoreClass(change.llm_score || 0)}">
-              {change.llm_score || 0}
+            <span class="score {getScoreClass(change.score || 0)}">
+              {change.score || 0}
             </span>
             <span class="risk">{getRiskIcon(change.risk_level)} {change.risk_level}</span>
           </div>

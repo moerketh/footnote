@@ -6,16 +6,16 @@
 
   const API_URL = '';
 
-  let changes = [];
-  let stats = null;
-  let loading = false;
-  let error = null;
-  let selectedChange = null;
-  let view = 'list';
+  let changes = $state([]);
+  let stats = $state(null);
+  let loading = $state(false);
+  let error = $state(null);
+  let selectedChange = $state(null);
+  let view = $state('list');
 
-  let minScore = 0;
-  let riskLevel = '';
-  let searchQuery = '';
+  let minScore = $state(0);
+  let riskLevel = $state('');
+  let searchQuery = $state('');
 
   async function fetchChanges() {
     loading = true;
@@ -63,10 +63,6 @@
     fetchStats();
   });
 
-  function handleFilterChange() {
-    fetchChanges();
-  }
-
   function showStats() {
     view = 'stats';
   }
@@ -83,8 +79,8 @@
       <span class="tagline">The real story is in the footnotes</span>
     </div>
     <nav class="nav">
-      <button class:active={view === 'list'} on:click={showList}>Changes</button>
-      <button class:active={view === 'stats'} on:click={showStats}>Stats</button>
+      <button class:active={view === 'list'} onclick={showList}>Changes</button>
+      <button class:active={view === 'stats'} onclick={showStats}>Stats</button>
     </nav>
   </header>
 
@@ -92,13 +88,13 @@
     <div class="filters">
       <div class="filter-group">
         <label>Min Score:</label>
-        <input type="range" min="0" max="10" step="1" bind:value={minScore} on:change={handleFilterChange} />
+        <input type="range" min="0" max="10" step="1" bind:value={minScore} onchange={fetchChanges} />
         <span class="score-badge">{minScore}</span>
       </div>
 
       <div class="filter-group">
         <label>Risk:</label>
-        <select bind:value={riskLevel} on:change={handleFilterChange}>
+        <select bind:value={riskLevel} onchange={fetchChanges}>
           <option value="">All</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
@@ -108,7 +104,7 @@
       </div>
 
       <div class="filter-group search">
-        <input type="text" placeholder="Search commits..." bind:value={searchQuery} on:input={handleFilterChange} />
+        <input type="text" placeholder="Search commits..." bind:value={searchQuery} oninput={fetchChanges} />
       </div>
     </div>
 
