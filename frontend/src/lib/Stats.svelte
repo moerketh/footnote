@@ -14,7 +14,7 @@
 
   $: riskData = stats?.by_risk_level ? Object.entries(stats.by_risk_level) : [];
   $: repoData = stats?.by_repo ? Object.entries(stats.by_repo) : [];
-  $: maxRisk = Math.max(...(riskData.map(([,v]) => v) || [1]));
+  $: maxRisk = riskData.length > 0 ? Math.max(...riskData.map(([,v]) => v)) : 1;
 </script>
 
 <div class="stats-view">
