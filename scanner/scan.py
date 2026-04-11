@@ -118,15 +118,16 @@ def clone_or_pull(repo_config: RepoConfig, base_dir: str = "/data/repos",
 
 
 def get_new_commits(repo: Repo, since_hash: Optional[str] = None,
-                    since_days: int = 30, max_commits: int = 2000) -> list:
+                    since_days: int = 30) -> list:
     """
     Get commits since a hash or time window.
-    
-    No unshallowing — works within the cloned depth.
+
+    No max_commits cap — scanning is cheap (local git). The expensive LLM
+    scoring step uses has_change() to skip already-processed commits.
     """
     if since_hash:
         try:
-            commits = list(repo.iter_commits(f"{since_hash}..HEAD", max_count=max_commits))
+            commits = list(repo.iter_commits(f"{since_hash}..HEAD"))
             log.info(f"Found {len(commits)} new commits since {since_hash[:8]}")
             return commits
         except GitCommandError:
@@ -135,7 +136,7 @@ def get_new_commits(repo: Repo, since_hash: Optional[str] = None,
     # Time-based fallback
     since_date = datetime.now(timezone.utc) - timedelta(days=since_days)
     since_str = since_date.strftime("%Y-%m-%d")
-    commits = list(repo.iter_commits("HEAD", since=since_str, max_count=max_commits))
+    commits = list(repo.iter_commits("HEAD", since=since_str))
     log.info(f"Found {len(commits)} commits in last {since_days} days")
     return commits
 
