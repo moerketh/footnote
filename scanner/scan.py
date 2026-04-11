@@ -179,6 +179,8 @@ def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[Com
     diff_parts = []
     total_additions = 0
     total_deletions = 0
+    all_added_lines = []
+    all_removed_lines = []
 
     for d in diffs:
         filepath = d.b_path or d.a_path
@@ -197,8 +199,10 @@ def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[Com
         for line in patch.split("\n"):
             if line.startswith("+") and not line.startswith("+++"):
                 total_additions += 1
+                all_added_lines.append(line[1:])
             elif line.startswith("-") and not line.startswith("---"):
                 total_deletions += 1
+                all_removed_lines.append(line[1:])
 
         diff_parts.append(f"--- {d.a_path}\n+++ {d.b_path}\n{patch}")
 
@@ -209,6 +213,13 @@ def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[Com
     # could be security-relevant (e.g. a new permission requirement note)
     if total_additions + total_deletions < 1:
         return None
+
+    # Skip punctuation/capitalization-only changes: if stripping non-alphanumeric
+    # chars and lowercasing makes added and removed lines identical, it's just formatting
+    if total_additions + total_deletions <= 4:
+        strip = lambda s: re.sub(r"[^a-zA-Z0-9]", "", s).lower()
+        if strip("".join(all_added_lines)) == strip("".join(all_removed_lines)):
+            return None
 
     diff_text = "\n".join(diff_parts)
     if len(diff_text) > max_diff_size:
