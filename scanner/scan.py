@@ -26,6 +26,7 @@ class RepoConfig:
     branch: str
     name: str
     enabled: bool = True
+    description: str = ""
 
 
 @dataclass
