@@ -127,6 +127,7 @@
         <label>Risk:</label>
         <select bind:value={riskLevel} onchange={() => { offset = 0; fetchChanges(); }}>
           <option value="">All</option>
+          <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>

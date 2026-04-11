@@ -13,17 +13,19 @@
   }
 
   function getScoreClass(score) {
-    if (score >= 8) return 'high';
-    if (score >= 5) return 'medium';
-    if (score >= 3) return 'low';
+    if (score > 8) return 'critical';
+    if (score >= 7) return 'high';
+    if (score >= 4) return 'medium';
+    if (score >= 2) return 'low';
     return 'info';
   }
 
   function getRiskIcon(level) {
     const icons = {
+      critical: '🟣',
       high: '🔴',
-      medium: '🟡',
-      low: '🟢',
+      medium: '🟠',
+      low: '🟡',
       informational: '⚪'
     };
     return icons[level] || '⚪';
@@ -141,6 +143,11 @@
     text-align: center;
   }
 
+  .score.critical {
+    background: #a371f7;
+    color: white;
+  }
+
   .score.high {
     background: #da3633;
     color: white;
@@ -152,8 +159,8 @@
   }
 
   .score.low {
-    background: #2ea043;
-    color: white;
+    background: #d4a72c;
+    color: #0d1117;
   }
 
   .score.info {

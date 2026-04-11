@@ -3,9 +3,10 @@
 
   function getRiskColor(level) {
     const colors = {
+      critical: '#a371f7',
       high: '#f85149',
       medium: '#d29922',
-      low: '#3fb950',
+      low: '#d4a72c',
       informational: '#8b949e'
     };
     return colors[level] || '#8b949e';

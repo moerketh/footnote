@@ -14,9 +14,10 @@
   }
 
   function getScoreClass(score) {
-    if (score >= 8) return 'high';
-    if (score >= 5) return 'medium';
-    if (score >= 3) return 'low';
+    if (score > 8) return 'critical';
+    if (score >= 7) return 'high';
+    if (score >= 4) return 'medium';
+    if (score >= 2) return 'low';
     return 'info';
   }
 
@@ -227,6 +228,11 @@
     min-width: 80px;
   }
 
+  .score-badge.critical {
+    background: #a371f733;
+    color: #a371f7;
+  }
+
   .score-badge.high {
     background: #da363333;
     color: #f85149;
@@ -238,8 +244,8 @@
   }
 
   .score-badge.low {
-    background: #2ea04333;
-    color: #3fb950;
+    background: #d4a72c33;
+    color: #d4a72c;
   }
 
   .score-badge.info {
@@ -280,6 +286,11 @@
     color: #c9d1d9;
   }
 
+  .value.risk-critical {
+    color: #a371f7;
+    font-weight: bold;
+  }
+
   .value.risk-high {
     color: #f85149;
     font-weight: bold;
@@ -291,7 +302,7 @@
   }
 
   .value.risk-low {
-    color: #3fb950;
+    color: #d4a72c;
   }
 
   section {
