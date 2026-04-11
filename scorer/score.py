@@ -356,7 +356,7 @@ def score_diffs(diffs: list[dict],
     failed = 0
 
     # Set up clients
-    use_prefilter = local_url is not None
+    use_prefilter = bool(local_url)
     if use_prefilter:
         local_client = get_client(local_url, local_key)
 

@@ -37,12 +37,12 @@ def run_pipeline(
     cloud_model: str = "kimi-k2.5",
     cloud_key: str = None,
     prefilter_threshold: int = 3,
-    min_store_score: float = 3.0,
+    min_store_score: float = 0,
 ):
     db = Database(db_path)
 
     # Set up LLM clients once
-    use_prefilter = local_url is not None
+    use_prefilter = bool(local_url)
     if use_prefilter:
         local_client = get_client(local_url, "ollama")
 
@@ -182,5 +182,5 @@ if __name__ == "__main__":
         cloud_model=os.environ.get("CLOUD_MODEL", "kimi-k2.5"),
         cloud_key=os.environ.get("CLOUD_API_KEY"),
         prefilter_threshold=int(os.environ.get("PREFILTER_THRESHOLD", "3")),
-        min_store_score=float(os.environ.get("MIN_STORE_SCORE", "3.0")),
+        min_store_score=float(os.environ.get("MIN_STORE_SCORE", "0")),
     )

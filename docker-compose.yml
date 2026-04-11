@@ -40,7 +40,7 @@ services:
       - LOCAL_OLLAMA_URL=${LOCAL_OLLAMA_URL:-}
       - LOCAL_MODEL=${LOCAL_MODEL:-gemma4:26b}
       - PREFILTER_THRESHOLD=${PREFILTER_THRESHOLD:-3}
-      - MIN_STORE_SCORE=${MIN_STORE_SCORE:-3.0}
+      - MIN_STORE_SCORE=${MIN_STORE_SCORE:-0}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
     profiles:
       - pipeline
