@@ -4,19 +4,50 @@
       "url": "https://github.com/MicrosoftDocs/azure-docs",
       "branch": "main",
       "name": "azure-docs",
-      "enabled": true
+      "enabled": true,
+      "description": "Official Azure documentation. Covers all Azure services including identity (Entra ID/AAD), storage, networking, compute, and security. Watch for: changes to default security settings, permission model updates, API breaking changes, deprecation of security controls, TLS/encryption policy changes, and silent fixes to authorization behavior."
     },
     {
       "url": "https://github.com/MicrosoftDocs/entra-docs",
       "branch": "main",
       "name": "entra-docs",
-      "enabled": false
+      "enabled": false,
+      "description": "Microsoft Entra (formerly Azure AD) documentation. Covers identity, authentication, authorization, conditional access, and MFA. Watch for: mandatory MFA enforcement, token validation changes, app registration breaking changes, conditional access policy defaults, and cross-tenant trust changes."
     },
     {
       "url": "https://github.com/MicrosoftDocs/azure-docs-powershell",
       "branch": "main",
       "name": "azure-docs-powershell",
-      "enabled": false
+      "enabled": false,
+      "description": "Azure PowerShell cmdlet documentation. Watch for: deprecated cmdlets affecting security operations, parameter changes in identity/RBAC commands, and breaking changes in automation scripts that manage security configurations."
+    },
+    {
+      "url": "https://github.com/MicrosoftDocs/azure-docs-cli",
+      "branch": "main",
+      "name": "azure-docs-cli",
+      "enabled": false,
+      "description": "Azure CLI reference documentation. Watch for: breaking changes in az commands for RBAC, keyvault, network security groups, and identity management. Parameter renames or removed commands can break security automation."
+    },
+    {
+      "url": "https://github.com/MicrosoftDocs/defender-docs",
+      "branch": "main",
+      "name": "defender-docs",
+      "enabled": false,
+      "description": "Microsoft Defender for Cloud, Endpoint, and Identity documentation. Watch for: security posture changes, alert logic updates, recommendation deprecations, connector changes, and shifts in default protection policies."
+    },
+    {
+      "url": "https://github.com/MicrosoftDocs/microsoft-365-docs",
+      "branch": "public",
+      "name": "microsoft-365-docs",
+      "enabled": false,
+      "description": "Microsoft 365 documentation covering Purview, DLP, compliance policies, and security features. Watch for: data loss prevention rule changes, compliance policy defaults, sensitivity label behavior changes, and audit log schema updates."
+    },
+    {
+      "url": "https://github.com/MicrosoftDocs/azure-stack-docs",
+      "branch": "main",
+      "name": "azure-stack-docs",
+      "enabled": false,
+      "description": "Azure Stack Hub and HCI documentation for hybrid cloud deployments. Watch for: security update policies, certificate rotation changes, identity provider integration changes, and network security defaults for disconnected environments."
     }
   ]
 }

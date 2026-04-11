@@ -1,0 +1,21 @@
+id: api-connections-dynamic-invoke
+title: "API Connections DynamicInvoke: GET proxy allows Reader cross-tenant credential access"
+source: "https://www.binarysecurity.no/posts/2025/03/api-connections"
+commit_message: "Update API Connections proxy endpoint from GET to POST for DynamicInvoke"
+diff_snippet: |
+  -GET /apim/{connection-id}/DynamicInvoke
+  +POST /apim/{connection-id}/DynamicInvoke
+  +
+  +Note: The DynamicInvoke endpoint now requires POST method.
+  +Reader role users can no longer invoke backend connections via GET requests.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: true
+  change_nature: critical
+  actionability: required
+  broad_scope: true
+  score: 10.0
+  risk_level: critical
+  rationale: "HTTP method change from GET to POST for DynamicInvoke proxy closed a cross-tenant credential access vulnerability exploitable by Reader-role users."

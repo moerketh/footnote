@@ -52,7 +52,7 @@
     <header class="detail-header">
       <div class="title-section">
         <div class="commit-hash">
-          <a href="https://github.com/MicrosoftDocs/azure-docs/commit/{change.commit_hash}" 
+          <a href="https://github.com/MicrosoftDocs/azure-docs/commit/{change.commit_hash}"
              target="_blank"
              rel="noopener">
             {change.commit_hash?.slice(0, 12)}
@@ -66,6 +66,33 @@
         <div class="score-label">Security Score</div>
       </div>
     </header>
+
+    {#if change.scoring_details && Object.keys(change.scoring_details).length > 0}
+      <div class="scoring-breakdown">
+        <div class="cia-chips">
+          <span class="chip" class:active={change.scoring_details.cia?.confidentiality}>C</span>
+          <span class="chip" class:active={change.scoring_details.cia?.integrity}>I</span>
+          <span class="chip" class:active={change.scoring_details.cia?.availability}>A</span>
+        </div>
+        <div class="dimension-pills">
+          {#if change.scoring_details.change_nature}
+            <span class="pill nature-{change.scoring_details.change_nature}">{change.scoring_details.change_nature.replace('_', ' ')}</span>
+          {/if}
+          {#if change.scoring_details.actionability}
+            <span class="pill action-{change.scoring_details.actionability}">{change.scoring_details.actionability}</span>
+          {/if}
+          {#if change.scoring_details.broad_scope}
+            <span class="pill scope">broad scope</span>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    {#if change.rationale}
+      <div class="rationale-line">
+        <em>{change.rationale}</em>
+      </div>
+    {/if}
 
     <div class="detail-meta">
       <div class="meta-row">
@@ -107,6 +134,17 @@
       </section>
     {/if}
 
+    {#if change.services?.length > 0}
+      <section class="services-section">
+        <h3>☁️ Affected Services</h3>
+        <div class="services-list">
+          {#each change.services as service}
+            <span class="service">{service}</span>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
     {#if change.files_changed?.length > 0}
       <section class="files-section">
         <h3>📁 Files Changed</h3>
@@ -121,7 +159,7 @@
     {#if change.diff_summary}
       <section class="diff-section">
         <h3>📊 Diff Summary</h3>
-        <pre class="diff-text">{truncatedDiff(change.diff_summary, 150)}</pre>
+        <pre class="diff-text">{@html formatDiff(truncatedDiff(change.diff_summary, 150))}</pre>
       </section>
     {/if}
 
@@ -287,6 +325,21 @@
     font-size: 0.85rem;
   }
 
+  .services-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .service {
+    background: #1f6feb33;
+    color: #79c0ff;
+    border: 1px solid #1f6feb66;
+    padding: 0.3rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+  }
+
   .file-list {
     list-style: none;
     padding: 0;
@@ -316,11 +369,77 @@
     overflow-y: auto;
   }
 
-  .rationale p {
+  :global(.diff-text .add) { color: #3fb950; }
+  :global(.diff-text .del) { color: #f85149; }
+  :global(.diff-text .ctx) { color: #8b949e; }
+
+  .scoring-breakdown {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background: #0d1117;
+    border-radius: 6px;
+  }
+
+  .cia-chips {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .chip {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    background: #21262d;
+    color: #484f58;
+    border: 1px solid #30363d;
+  }
+
+  .chip.active {
+    background: #388bfd33;
+    color: #58a6ff;
+    border-color: #388bfd66;
+  }
+
+  .dimension-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .pill {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .pill.nature-cosmetic { background: #8b949e33; color: #8b949e; }
+  .pill.nature-clarification { background: #8b949e33; color: #c9d1d9; }
+  .pill.nature-new_feature { background: #2ea04333; color: #3fb950; }
+  .pill.nature-behavior_change { background: #d2992233; color: #d29922; }
+  .pill.nature-critical { background: #da363333; color: #f85149; }
+
+  .pill.action-none { background: #8b949e33; color: #8b949e; }
+  .pill.action-recommended { background: #d2992233; color: #d29922; }
+  .pill.action-required { background: #da363333; color: #f85149; }
+
+  .pill.scope { background: #1f6feb33; color: #79c0ff; }
+
+  .rationale-line {
     background: #1f6feb15;
     border-left: 3px solid #58a6ff;
-    padding: 1rem;
-    margin: 0;
-    font-style: italic;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    color: #c9d1d9;
+    font-size: 0.9rem;
   }
 </style>

@@ -1,0 +1,78 @@
+version: 1
+max_score: 10
+
+dimensions:
+  - name: confidentiality
+    group: cia
+    type: boolean
+    points: 1
+    description: "Does this change affect data confidentiality (exposure, access control, data leakage)?"
+
+  - name: integrity
+    group: cia
+    type: boolean
+    points: 1
+    description: "Does this change affect data or system integrity? Includes unauthorized modification, trust boundary changes, token validation changes, and permission model alterations."
+
+  - name: availability
+    group: cia
+    type: boolean
+    points: 1
+    description: "Does this change affect service availability? Includes lockouts, access loss from deprecations, workflow disruption from mandatory changes, or capacity impact."
+
+  - name: change_nature
+    type: enum
+    levels:
+      cosmetic:
+        points: 0
+        description: "Typo, grammar, formatting, broken links — no security posture change"
+      clarification:
+        points: 1
+        description: "Explains existing behavior more clearly — no change to security posture"
+      new_feature:
+        points: 2
+        description: "New optional security control or configuration introduced"
+      behavior_change:
+        points: 3
+        description: "Changes defaults, existing permissions, access patterns, or makes previously optional controls mandatory"
+      critical:
+        points: 4
+        description: "Breaking change, deprecation of security control, silent security fix, HTTP method change altering authorization model"
+
+  - name: actionability
+    type: enum
+    levels:
+      none:
+        points: 0
+        description: "No action needed by users"
+      recommended:
+        points: 1
+        description: "Action recommended but not immediately required"
+      required:
+        points: 2
+        description: "Action required to maintain security posture or avoid breakage"
+
+  - name: broad_scope
+    type: boolean
+    points: 1
+    description: "Platform-wide or cross-service impact? Affects many tenants/subscriptions?"
+
+risk_thresholds:
+  - max: 1
+    level: informational
+  - max: 3
+    level: low
+  - max: 6
+    level: medium
+  - max: 8
+    level: high
+  - above: 8
+    level: critical
+
+notes:
+  - "HTTP method changes (GET to POST or vice versa) that alter the authorization model are always 'critical' change_nature, regardless of other factors."
+  - "Cross-tenant impact always sets broad_scope=true."
+  - "A deprecation with a migration deadline is 'required' actionability, even if the deadline is far out."
+  - "Silent fixes (no advisory, found via diff only) are 'critical' change_nature."
+  - "Mandatory enforcement of previously optional controls (e.g., MFA, soft-delete) is 'behavior_change', not 'critical', unless it breaks existing functionality."
+  - "Availability includes access loss from deprecations and lockouts from enforcement changes, not just outages."

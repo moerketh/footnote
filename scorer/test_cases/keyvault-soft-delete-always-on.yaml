@@ -1,0 +1,24 @@
+id: keyvault-soft-delete-always-on
+title: "Azure Key Vault: soft-delete becomes always-on (cannot be disabled)"
+source: "https://learn.microsoft.com/en-us/azure/key-vault/general/soft-delete-change"
+commit_message: "Update Key Vault soft-delete documentation: now mandatory for all vaults"
+diff_snippet: |
+  -Soft-delete is enabled by default for new key vaults but can be disabled
+  -via the enableSoftDelete property.
+  +Soft-delete is now mandatory and cannot be disabled for any key vault.
+  +The enableSoftDelete property is always true.
+  +
+  +This protects against accidental or malicious deletion of keys, secrets,
+  +and certificates. Deleted items are retained for the configured retention
+  +period (7-90 days) before permanent deletion.
+expected:
+  cia:
+    confidentiality: false
+    integrity: true
+    availability: true
+  change_nature: behavior_change
+  actionability: required
+  broad_scope: true
+  score: 8.0
+  risk_level: high
+  rationale: "Mandatory soft-delete changes Key Vault deletion behavior platform-wide, affecting cleanup workflows and requiring action from automation that purges vaults."

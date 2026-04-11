@@ -1,0 +1,24 @@
+id: azure-storage-public-blob-default
+title: "Azure Storage: public blob access disabled by default"
+source: "https://learn.microsoft.com/en-us/azure/storage/blobs/anonymous-read-access-overview"
+commit_message: "Update default security settings for new storage accounts"
+diff_snippet: |
+  -Container anonymous access setting: By default, anonymous access is enabled
+  -for new storage accounts. Containers are set to private by default but can
+  -be configured for blob or container public access.
+  +By default, anonymous access to blob data is prohibited for new storage
+  +accounts. The allowBlobPublicAccess property is set to false by default.
+  +
+  +Existing storage accounts are not affected by this change.
+  +To allow anonymous access, you must explicitly set allowBlobPublicAccess=true.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: false
+  change_nature: behavior_change
+  actionability: recommended
+  broad_scope: true
+  score: 7.0
+  risk_level: high
+  rationale: "Default changed to block public blob access for new accounts. Integrity flagged: prevents unauthorized modification of publicly exposed blobs. Existing accounts unaffected but migration recommended."

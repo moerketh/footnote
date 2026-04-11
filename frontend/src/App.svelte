@@ -16,8 +16,15 @@
   let minScore = $state(0);
   let riskLevel = $state('');
   let searchQuery = $state('');
+  let selectedTag = $state('');
+  let selectedRepo = $state('');
+  let offset = $state(0);
+  let hasMore = $state(false);
+  const LIMIT = 50;
 
-  async function fetchChanges() {
+  let repos = $derived([...new Set(changes.map(c => c.repo_name))].sort());
+
+  async function fetchChanges(append = false) {
     loading = true;
     error = null;
     try {
@@ -25,17 +32,28 @@
       if (minScore > 0) params.append('min_score', minScore);
       if (riskLevel) params.append('risk_level', riskLevel);
       if (searchQuery) params.append('search', searchQuery);
+      if (selectedTag) params.append('tag', selectedTag);
+      if (selectedRepo) params.append('repo', selectedRepo);
+      params.append('limit', LIMIT);
+      params.append('offset', append ? offset : 0);
 
       const url = `${API_URL}/changes?${params}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      changes = data.changes || [];
+      const page = data.changes || [];
+      changes = append ? [...changes, ...page] : page;
+      hasMore = page.length === LIMIT;
     } catch (err) {
       error = err.message;
     } finally {
       loading = false;
     }
+  }
+
+  function loadMore() {
+    offset = changes.length;
+    fetchChanges(true);
   }
 
   async function fetchStats() {
@@ -51,6 +69,19 @@
   function selectChange(change) {
     selectedChange = change;
     view = 'detail';
+  }
+
+  function filterByTag(tag) {
+    selectedTag = tag;
+    offset = 0;
+    view = 'list';
+    fetchChanges();
+  }
+
+  function clearTag() {
+    selectedTag = '';
+    offset = 0;
+    fetchChanges();
   }
 
   function goBack() {
@@ -88,13 +119,13 @@
     <div class="filters">
       <div class="filter-group">
         <label>Min Score:</label>
-        <input type="range" min="0" max="10" step="1" bind:value={minScore} onchange={fetchChanges} />
+        <input type="range" min="0" max="10" step="1" bind:value={minScore} onchange={() => { offset = 0; fetchChanges(); }} />
         <span class="score-badge">{minScore}</span>
       </div>
 
       <div class="filter-group">
         <label>Risk:</label>
-        <select bind:value={riskLevel} onchange={fetchChanges}>
+        <select bind:value={riskLevel} onchange={() => { offset = 0; fetchChanges(); }}>
           <option value="">All</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
@@ -104,8 +135,26 @@
       </div>
 
       <div class="filter-group search">
-        <input type="text" placeholder="Search commits..." bind:value={searchQuery} oninput={fetchChanges} />
+        <input type="text" placeholder="Search commits..." bind:value={searchQuery} oninput={() => { offset = 0; fetchChanges(); }} />
       </div>
+
+      {#if repos.length > 1}
+        <div class="filter-group">
+          <label>Repo:</label>
+          <select bind:value={selectedRepo} onchange={() => { offset = 0; fetchChanges(); }}>
+            <option value="">All</option>
+            {#each repos as repo}
+              <option value={repo}>{repo}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      {#if selectedTag}
+        <div class="filter-group">
+          <span class="active-tag">🏷️ {selectedTag} <button class="clear-tag" onclick={clearTag}>✕</button></span>
+        </div>
+      {/if}
     </div>
 
     {#if loading}
@@ -113,7 +162,15 @@
     {:else if error}
       <div class="error">Error: {error}</div>
     {:else}
-      <ChangesList {changes} onSelect={selectChange} />
+      <ChangesList {changes} onSelect={selectChange} onTagClick={filterByTag} />
+
+      {#if hasMore}
+        <div class="load-more">
+          <button onclick={loadMore} disabled={loading}>
+            {loading ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      {/if}
     {/if}
 
   {:else if view === 'detail'}
@@ -218,6 +275,28 @@
     width: 250px;
   }
 
+  .active-tag {
+    background: #388bfd33;
+    color: #58a6ff;
+    border: 1px solid #388bfd66;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .clear-tag {
+    background: none;
+    border: none;
+    color: #58a6ff;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.8rem;
+    line-height: 1;
+  }
+
   .score-badge {
     background: #238636;
     color: white;
@@ -237,6 +316,29 @@
 
   .error {
     color: #f85149;
+  }
+
+  .load-more {
+    text-align: center;
+    margin-top: 1.5rem;
+  }
+
+  .load-more button {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 0.5rem 2rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .load-more button:hover:not(:disabled) {
+    border-color: #58a6ff;
+  }
+
+  .load-more button:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .footer {

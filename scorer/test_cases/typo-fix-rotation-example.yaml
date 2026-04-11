@@ -1,0 +1,20 @@
+id: typo-fix-rotation-example
+title: "Fix typo in Secret Manager rotation example"
+source: null
+commit_message: "Fix typo in Secret Manager rotation example"
+diff_snippet: |
+  -    rotation_schedule = client.create_secret(
+  -        parent=parent, secret_id=secret_id, roatation_period="86400s"
+  +    rotation_schedule = client.create_secret(
+  +        parent=parent, secret_id=secret_id, rotation_period="86400s"
+expected:
+  cia:
+    confidentiality: false
+    integrity: false
+    availability: false
+  change_nature: cosmetic
+  actionability: none
+  broad_scope: false
+  score: 0.0
+  risk_level: informational
+  rationale: "Typo fix with no security impact."

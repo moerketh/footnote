@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS changes (
     score REAL DEFAULT 0,
     risk_level TEXT DEFAULT 'informational',
     summary TEXT,
+    rationale TEXT DEFAULT '',
+    scoring_details TEXT DEFAULT '{}',
+    scored_by TEXT DEFAULT '',
     services TEXT,
     stats TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -64,7 +67,19 @@ class Database:
 
     def _init_schema(self):
         self.conn.executescript(SCHEMA)
+        # Migrate: add new columns if upgrading from older schema
+        self._migrate_add_column("changes", "rationale", "TEXT DEFAULT ''")
+        self._migrate_add_column("changes", "scoring_details", "TEXT DEFAULT '{}'")
+        self._migrate_add_column("changes", "scored_by", "TEXT DEFAULT ''")
         self.conn.commit()
+
+    def _migrate_add_column(self, table: str, column: str, col_type: str):
+        """Add column if it doesn't exist (SQLite has no IF NOT EXISTS for columns)."""
+        cursor = self.conn.execute(f"PRAGMA table_info({table})")
+        columns = [row[1] for row in cursor.fetchall()]
+        if column not in columns:
+            self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+            log.info(f"Migrated: added {table}.{column}")
 
     def get_last_scan_hash(self, repo: str) -> Optional[str]:
         """Get the last scanned commit hash for a repo."""
@@ -73,6 +88,13 @@ class Database:
             (repo,)
         ).fetchone()
         return row["commit_hash"] if row else None
+
+    def has_change(self, commit_hash: str) -> bool:
+        """Check if a commit has already been scored."""
+        row = self.conn.execute(
+            "SELECT 1 FROM changes WHERE commit_hash = ?", (commit_hash,)
+        ).fetchone()
+        return row is not None
 
     def create_scan(self, repo: str, commit_hash: str,
                     commits_found: int = 0, commits_scored: int = 0) -> int:
@@ -84,6 +106,14 @@ class Database:
         self.conn.commit()
         return cur.lastrowid
 
+    def update_scan(self, scan_id: int, commits_found: int, commits_scored: int):
+        """Update scan record with final counts."""
+        self.conn.execute(
+            "UPDATE scans SET commits_found = ?, commits_scored = ? WHERE id = ?",
+            (commits_found, commits_scored, scan_id)
+        )
+        self.conn.commit()
+
     def insert_change(self, scan_id: int, change: dict) -> Optional[int]:
         """Insert a scored change. Returns change ID or None if duplicate."""
         try:
@@ -91,8 +121,8 @@ class Database:
                 """INSERT INTO changes
                    (scan_id, repo_name, commit_hash, commit_date, commit_message,
                     author, files_changed, diff_summary, diff_full, score,
-                    risk_level, summary, services, stats)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    risk_level, summary, rationale, scoring_details, scored_by, services, stats)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     scan_id,
                     change["repo_name"],
@@ -106,6 +136,9 @@ class Database:
                     change["score"],
                     change["risk_level"],
                     change["summary"],
+                    change.get("rationale", ""),
+                    json.dumps(change.get("scoring_details", {})),
+                    change.get("scored_by", ""),
                     json.dumps(change["services"]),
                     json.dumps(change["stats"]),
                 )
@@ -172,6 +205,7 @@ class Database:
             d["files_changed"] = json.loads(d["files_changed"] or "[]")
             d["services"] = json.loads(d["services"] or "[]")
             d["stats"] = json.loads(d["stats"] or "{}")
+            d["scoring_details"] = json.loads(d.get("scoring_details") or "{}")
             # Get tags
             tags = self.conn.execute(
                 "SELECT tag FROM change_tags WHERE change_id = ?", (d["id"],)
@@ -191,6 +225,7 @@ class Database:
         d["files_changed"] = json.loads(d["files_changed"] or "[]")
         d["services"] = json.loads(d["services"] or "[]")
         d["stats"] = json.loads(d["stats"] or "{}")
+        d["scoring_details"] = json.loads(d.get("scoring_details") or "{}")
         tags = self.conn.execute(
             "SELECT tag FROM change_tags WHERE change_id = ?", (d["id"],)
         ).fetchall()

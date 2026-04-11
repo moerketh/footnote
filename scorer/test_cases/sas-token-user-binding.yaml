@@ -1,0 +1,25 @@
+id: sas-token-user-binding
+title: "Azure Storage: SAS token user delegation (user-binding) feature"
+source: "https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview"
+commit_message: "Document new user delegation SAS with identity binding"
+diff_snippet: |
+  +## User delegation SAS (preview)
+  +
+  +A user delegation SAS is secured with Azure AD credentials instead of
+  +the account key. The SAS is bound to the user's identity, providing
+  +better auditability and the ability to revoke access when the user's
+  +Azure AD permissions change.
+  +
+  +Recommended: Use user delegation SAS instead of account-key SAS for
+  +new applications requiring fine-grained, identity-based access control.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: false
+  change_nature: new_feature
+  actionability: recommended
+  broad_scope: false
+  score: 5.0
+  risk_level: medium
+  rationale: "New user-delegation SAS provides identity-bound access tokens as a more secure alternative to account-key SAS."

@@ -1,0 +1,24 @@
+id: entra-app-only-token-breaking
+title: "Entra ID: app-only access tokens breaking change for multi-tenant apps"
+source: "https://learn.microsoft.com/en-us/entra/identity-platform/reference-breaking-changes"
+commit_message: "Document breaking change in app-only access token validation for multi-tenant apps"
+diff_snippet: |
+  -Multi-tenant applications can request app-only access tokens using
+  -client credentials flow. Token validation relies on the issuer claim.
+  +Breaking change effective February 2025: app-only access tokens for
+  +multi-tenant apps will include a new 'idtyp' claim. Applications that
+  +validate tokens must update their validation logic to check this claim.
+  +
+  +Applications not updated will reject valid tokens or accept invalid ones.
+  +This affects all multi-tenant apps using client_credentials grant type.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: true
+  change_nature: critical
+  actionability: required
+  broad_scope: true
+  score: 10.0
+  risk_level: critical
+  rationale: "Breaking token validation change for all multi-tenant apps — apps not updated will have broken authentication or accept invalid tokens."

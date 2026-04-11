@@ -1,0 +1,24 @@
+id: rbac-classic-admin-deprecated
+title: "Azure RBAC: classic administrator roles deprecated"
+source: "https://learn.microsoft.com/en-us/azure/role-based-access-control/classic-administrators"
+commit_message: "Announce deprecation of classic administrator roles (Co-Administrator, Service Administrator)"
+diff_snippet: |
+  -Classic administrator roles (Co-Administrator, Service Administrator, Account
+  -Administrator) remain supported alongside Azure RBAC roles.
+  +Classic administrator roles are deprecated as of August 31, 2024.
+  +Co-Administrator and Service Administrator roles will be retired.
+  +
+  +Action required: Migrate all classic role assignments to Azure RBAC
+  +roles before the retirement date. After retirement, classic administrators
+  +will lose access to Azure resources.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: true
+  change_nature: critical
+  actionability: required
+  broad_scope: true
+  score: 10.0
+  risk_level: critical
+  rationale: "Deprecation of classic admin roles with hard deadline — users who don't migrate to RBAC will lose all access to Azure resources."

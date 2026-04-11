@@ -1,0 +1,23 @@
+id: entra-mfa-mandatory
+title: "Entra ID: MFA mandatory enforcement for all tenants"
+source: "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mandatory-multifactor-authentication"
+commit_message: "Update MFA requirements: mandatory enforcement for all Azure portal access"
+diff_snippet: |
+  -MFA is recommended for privileged accounts accessing the Azure portal.
+  +MFA is now mandatory for all users accessing the Azure portal, Microsoft Entra
+  +admin center, and Microsoft Intune admin center.
+  +
+  +Enforcement begins October 15, 2024 for Azure portal,
+  +and early 2025 for CLI, PowerShell, and Terraform.
+  +Tenants without MFA configured will receive a 90-day grace period.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: true
+  change_nature: behavior_change
+  actionability: required
+  broad_scope: true
+  score: 9.0
+  risk_level: critical
+  rationale: "Mandatory MFA enforcement for all Azure portal users changes authentication defaults platform-wide, with potential lockout risk for unprepared tenants."

@@ -1,0 +1,22 @@
+id: apim-reader-privilege-escalation
+title: "APIM: Reader role can escalate to Contributor via subscription keys"
+source: "https://learn.microsoft.com/en-us/azure/api-management/api-management-role-based-access-control"
+commit_message: "Update RBAC documentation: restrict subscription key access to Contributor role"
+diff_snippet: |
+  -Users with Reader role can view subscription keys in the Azure portal.
+  +Subscription key access is now restricted to Contributor role and above.
+  +Reader role users can no longer view or copy subscription keys.
+  +
+  +This change prevents potential privilege escalation where Reader users
+  +could use subscription keys to invoke APIs beyond their intended access.
+expected:
+  cia:
+    confidentiality: true
+    integrity: true
+    availability: true
+  change_nature: behavior_change
+  actionability: required
+  broad_scope: true
+  score: 9.0
+  risk_level: critical
+  rationale: "Permission change restricts Reader role from accessing subscription keys, closing a privilege escalation path. Availability flagged: users relying on Reader-role key access lose that workflow."
