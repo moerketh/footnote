@@ -47,7 +47,6 @@ class CommitDiff:
 SKIP_PATTERNS = [
     r"\.(?:png|jpg|jpeg|gif|svg|ico|bmp|webp)$",
     r"\.(?:pdf|zip|tar|gz)$",
-    r"/includes/",
     r"bread-toc\.yml$",
     r"zone-pivot-groups\.yml$",
     r"\.openpublishing\.",
@@ -58,10 +57,14 @@ LOCALE_PATTERNS = [
 ]
 
 NOISE_COMMIT_PATTERNS = [
+    # Only matches standard merge commits ("Merge pull request #123 from ..."),
+    # NOT squash merges (which use the PR title as commit message).
+    # Standard merges are noise because individual commits are in the history.
+    # Squash merges are the sole record of PR changes and must be scored.
     r"^Merge\s+(?:pull\s+request|branch)",
-    r"^Update\s+\S+\.md$",
     r"(?i)fix(?:ed)?\s+(?:typo|spelling|grammar|formatting|whitespace|broken\s+link)",
     r"(?i)^locale\b",
+    # only catches double-reverts (revert of a revert), not single reverts which could be security-relevant
     r"(?i)^revert\b.*revert\b",
 ]
 
@@ -202,7 +205,9 @@ def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[Com
     if not filtered_files:
         return None
 
-    if total_additions + total_deletions < 3:
+    # Any non-empty diff reaches the scorer — even a single added line
+    # could be security-relevant (e.g. a new permission requirement note)
+    if total_additions + total_deletions < 1:
         return None
 
     diff_text = "\n".join(diff_parts)
