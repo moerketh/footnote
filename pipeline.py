@@ -7,8 +7,10 @@ already-scored commits are skipped (DB lookup, no LLM call).
 """
 
 import os
+import signal
 import sys
 import logging
+import threading
 from dataclasses import asdict
 from pathlib import Path
 
@@ -23,6 +25,17 @@ from api.database import Database
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("footnote.pipeline")
+
+_shutdown = threading.Event()
+
+def _handle_sigint(signum, frame):
+    if _shutdown.is_set():
+        # Second Ctrl+C: restore default handler for hard kill
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        log.warning("Force shutdown — press Ctrl+C again to kill immediately")
+        return
+    _shutdown.set()
+    log.info("\nShutdown requested — finishing current commit, then stopping…")
 
 
 def run_pipeline(
@@ -104,6 +117,11 @@ def run_pipeline(
             rate_limited = False
 
             for i, diff_data in enumerate(diff_dicts):
+                if _shutdown.is_set():
+                    remaining = len(diff_dicts) - i
+                    log.info(f"Stopped by user. {remaining} commits remaining. Re-run to continue.")
+                    break
+
                 # Skip if already scored (resume-safe)
                 if db.has_change(diff_data["commit_hash"]):
                     skipped_existing += 1
@@ -158,6 +176,9 @@ def run_pipeline(
                 log.info("Stopping due to API rate limit. Re-run to continue.")
                 break
 
+            if _shutdown.is_set():
+                break
+
         # Print summary
         stats = db.get_stats()
         log.info(f"\n{'='*60}")
@@ -170,6 +191,7 @@ def run_pipeline(
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, _handle_sigint)
     run_pipeline(
         config_path=os.environ.get("CONFIG_PATH", "repos.json"),
         data_dir=os.environ.get("DATA_DIR", "/data/repos"),
