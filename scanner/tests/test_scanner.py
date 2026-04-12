@@ -328,6 +328,205 @@ class TestPunctuationFilter:
         result = extract_diff(MagicMock(), c)
         assert result is not None
 
+    def test_hyperlink_added_to_existing_text_is_filtered(self):
+        """Wrapping existing text in a markdown link — pure formatting."""
+        c = make_commit("Add link to Azure endpoint docs", files={
+            "articles/app-service/configure-ssl-certificate.md": (
+                "-If using Azure Traffic Manager, the site must be configured as an Azure Endpoint.\n"
+                "+If using Azure Traffic Manager, the site must be configured as an [Azure endpoint](/azure/traffic-manager/traffic-manager-endpoint-types#azure-endpoints).\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_hyperlink_removed_is_filtered(self):
+        """Removing a link but keeping the text — pure formatting."""
+        c = make_commit("Remove broken link", files={
+            "articles/overview.md": (
+                "-See the [Azure portal](https://portal.azure.com) for details.\n"
+                "+See the Azure portal for details.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_hyperlink_url_changed_is_filtered(self):
+        """Changing the URL but keeping the link text — no content change."""
+        c = make_commit("Fix link URL", files={
+            "articles/overview.md": (
+                "-See [the docs](https://old-url.com/page).\n"
+                "+See [the docs](https://new-url.com/page).\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_hyperlink_with_text_change_passes(self):
+        """Link added AND the visible text changed — must be scored."""
+        c = make_commit("Update endpoint type", files={
+            "articles/overview.md": (
+                "-the site must be configured as a standard endpoint.\n"
+                "+the site must be configured as a [premium endpoint](/azure/premium).\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is not None
+
+
+# ===========================================================================
+# DIFF EXTRACTION — PURE MOVE FILTER
+# ===========================================================================
+
+
+class TestPureMoveFilter:
+    """Tests for detecting content moved without changes."""
+
+    def test_note_moved_up_is_filtered(self):
+        """Real-world case: important note moved closer to referenced table."""
+        c = make_commit("Moved 'important' note up closer to the table", files={
+            "articles/app-service/configure-ssl-certificate.md": (
+                "+> [!IMPORTANT]\n"
+                "+> The values in the table are application (client) IDs.\n"
+                "-> [!IMPORTANT]\n"
+                "-> The values in the table are application (client) IDs.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_section_reordered_is_filtered(self):
+        """Multiple lines moved to a different position."""
+        c = make_commit("Reorder sections", files={
+            "articles/security/overview.md": (
+                "-## Prerequisites\n"
+                "-You need Contributor role.\n"
+                "-You need an Azure subscription.\n"
+                "+## Prerequisites\n"
+                "+You need Contributor role.\n"
+                "+You need an Azure subscription.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_move_across_files_is_filtered(self):
+        """Content moved from one file to another."""
+        c = make_commit("Move security note to correct file", files={
+            "articles/security/old-page.md": (
+                "-MFA is required for all admin accounts.\n"
+            ),
+            "articles/security/new-page.md": (
+                "+MFA is required for all admin accounts.\n"
+            ),
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_move_with_edit_passes(self):
+        """Content moved AND modified — must be scored."""
+        c = make_commit("Move and update note", files={
+            "articles/security/overview.md": (
+                "-MFA is optional for admin accounts.\n"
+                "+MFA is required for all admin accounts.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is not None
+
+    def test_move_with_punctuation_fix_is_filtered(self):
+        """Content moved and a period added — still just a move."""
+        c = make_commit("Move note, fix punctuation", files={
+            "articles/security/overview.md": (
+                "+You need Contributor role.\n"
+                "-You need Contributor role\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_move_with_capitalization_fix_is_filtered(self):
+        """Content moved and capitalization changed — still just a move."""
+        c = make_commit("Move and fix casing", files={
+            "articles/security/overview.md": (
+                "-see the Azure Portal for details\n"
+                "+See the Azure portal for details\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_move_with_whitespace_change_is_filtered(self):
+        """Content moved with extra spaces — still just a move."""
+        c = make_commit("Move and reformat", files={
+            "articles/security/overview.md": (
+                "-You  need   Contributor role\n"
+                "+You need Contributor role\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_move_with_markdown_reformatting_is_filtered(self):
+        """Content moved with bold/italic changes — still just a move."""
+        c = make_commit("Move note and reformat", files={
+            "articles/security/overview.md": (
+                "-Use *the* Azure **portal** to configure.\n"
+                "+Use **the** Azure *portal* to configure.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is None
+
+    def test_move_with_extra_line_added_passes(self):
+        """Content moved plus a new line added — not a pure move."""
+        c = make_commit("Move note and add warning", files={
+            "articles/security/overview.md": (
+                "-## Prerequisites\n"
+                "-You need Contributor role.\n"
+                "+## Prerequisites\n"
+                "+You need Contributor role.\n"
+                "+> [!WARNING] This role grants write access.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is not None
+
+    def test_move_with_line_removed_passes(self):
+        """Content moved but one line dropped — not a pure move."""
+        c = make_commit("Move and trim section", files={
+            "articles/security/overview.md": (
+                "-## Prerequisites\n"
+                "-You need Contributor role.\n"
+                "-See also: legacy docs.\n"
+                "+## Prerequisites\n"
+                "+You need Contributor role.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is not None
+
+    def test_pure_addition_not_affected(self):
+        """Pure additions (no removals) must not be caught by move filter."""
+        c = make_commit("Add new section", files={
+            "articles/security/overview.md": (
+                "+## New Security Requirements\n"
+                "+All accounts must enable MFA by March 2025.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is not None
+
+    def test_pure_deletion_not_affected(self):
+        """Pure deletions (no additions) must not be caught by move filter."""
+        c = make_commit("Remove deprecated section", files={
+            "articles/security/overview.md": (
+                "-## Legacy Authentication\n"
+                "-Basic auth is still supported.\n"
+            )
+        })
+        result = extract_diff(MagicMock(), c)
+        assert result is not None
+
 
 # ===========================================================================
 # DIFF EXTRACTION — FILE TYPE FILTERING

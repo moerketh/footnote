@@ -215,11 +215,27 @@ def extract_diff(repo: Repo, commit, max_diff_size: int = 50000) -> Optional[Com
     if total_additions + total_deletions < 1:
         return None
 
-    # Skip punctuation/capitalization-only changes: if stripping non-alphanumeric
-    # chars and lowercasing makes added and removed lines identical, it's just formatting
+    def _normalize(text: str) -> str:
+        """Normalize text for cosmetic-change detection.
+
+        Strips markdown links [text](url) → text, removes all
+        non-alphanumeric characters, and lowercases.
+        """
+        text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)  # [text](url) → text
+        text = re.sub(r"[^a-zA-Z0-9]", "", text)
+        return text.lower()
+
+    # Skip punctuation/capitalization/link-only changes: if normalizing
+    # makes added and removed lines identical, it's just formatting
     if total_additions + total_deletions <= 4:
-        strip = lambda s: re.sub(r"[^a-zA-Z0-9]", "", s).lower()
-        if strip("".join(all_added_lines)) == strip("".join(all_removed_lines)):
+        if _normalize("".join(all_added_lines)) == _normalize("".join(all_removed_lines)):
+            return None
+
+    # Skip pure moves: same lines removed from one location and added to another.
+    # Content didn't change, only its position in the document.
+    # Tolerates punctuation, whitespace, capitalization, and link differences.
+    if all_added_lines and all_removed_lines:
+        if sorted(_normalize(l) for l in all_added_lines) == sorted(_normalize(l) for l in all_removed_lines):
             return None
 
     diff_text = "\n".join(diff_parts)
