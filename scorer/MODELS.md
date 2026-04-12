@@ -84,3 +84,23 @@ CLOUD_MODEL=glm-5.1                      # Recommended (100% match with Opus ref
 ```
 
 All models are accessed via Ollama Cloud with a single API key. The `scored_by` field in the database records which model produced each score.
+
+## Scoring Approach: Signal-Based, Not Exhaustive
+
+The scorer classifies diffs along structured dimensions (CIA, change_nature,
+actionability, scope) rather than analyzing every line. Key security signals —
+permission changes, deprecations, breaking defaults — reliably appear in commit
+metadata (message, file list) and the first portion of the diff.
+
+Diff text is truncated in two stages:
+
+| Stage | Limit | Purpose |
+|-------|-------|---------|
+| Scanner (`scan.py`) | 50 KB | Cap raw git output, drop noise |
+| Scorer prompt (`score.py`) | 8 KB | Keep prompt size (and inference time) manageable |
+
+The 8 KB prompt trim is intentional: all 9 calibration test cases score
+correctly with this budget, and the structured dimensions don't require
+reading to the end of a massive diff. If a future test case reveals a
+signal that only appears deep in a diff, increase the limit in
+`build_prompt()` — but expect proportionally slower inference.

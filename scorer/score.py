@@ -216,6 +216,7 @@ def build_prompt(diff_data: dict, criteria: Optional[dict] = None) -> str:
     repo_desc = diff_data.get("repo_description", "")
     repo_desc_line = f"Context: {repo_desc}\n" if repo_desc else ""
 
+    # Signal-based truncation — see MODELS.md "Scoring Approach" for rationale.
     return template.format(
         criteria=criteria_text,
         examples=examples_text,
@@ -226,7 +227,7 @@ def build_prompt(diff_data: dict, criteria: Optional[dict] = None) -> str:
         commit_date=diff_data.get("commit_date", ""),
         commit_message=diff_data.get("commit_message", "")[:500],
         files_changed=", ".join(diff_data.get("files_changed", [])[:20]),
-        diff_text=diff_data.get("diff_text", "")[:15000],
+        diff_text=diff_data.get("diff_text", "")[:8000],
         tags=", ".join(VALID_TAGS),
     )
 

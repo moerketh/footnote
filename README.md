@@ -44,6 +44,14 @@ cp .env.example .env
 docker compose up --build
 ```
 
+### Run the scorer pipeline
+
+The pipeline (scanner + scorer) runs as a separate Docker Compose profile:
+
+```bash
+docker compose run --rm --build -e BACKFILL_DAYS=30 -e CLONE_DEPTH=20000 pipeline
+```
+
 ## Development
 
 ### Seed the database with test data

@@ -7,10 +7,10 @@ already-scored commits are skipped (DB lookup, no LLM call).
 """
 
 import os
-import signal
 import sys
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
 
@@ -28,15 +28,6 @@ log = logging.getLogger("footnote.pipeline")
 
 _shutdown = threading.Event()
 
-def _handle_sigint(signum, frame):
-    if _shutdown.is_set():
-        # Second Ctrl+C: restore default handler for hard kill
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        log.warning("Force shutdown — press Ctrl+C again to kill immediately")
-        return
-    _shutdown.set()
-    log.info("\nShutdown requested — finishing current commit, then stopping…")
-
 
 def run_pipeline(
     config_path: str = "repos.json",
@@ -51,6 +42,7 @@ def run_pipeline(
     cloud_key: str = None,
     prefilter_threshold: int = 3,
     min_store_score: float = 0,
+    max_workers: int = 5,
 ):
     db = Database(db_path)
 
@@ -107,7 +99,7 @@ def run_pipeline(
                 commits_scored=0,
             )
 
-            # Score and store one commit at a time (resumable)
+            # --- Pass 1: Filter (sequential, fast) ---
             diff_dicts = [asdict(d) for d in diffs]
             stored = 0
             skipped_existing = 0
@@ -116,47 +108,70 @@ def run_pipeline(
             failed = 0
             rate_limited = False
 
-            for i, diff_data in enumerate(diff_dicts):
+            to_score = []
+            for diff_data in diff_dicts:
                 if _shutdown.is_set():
-                    remaining = len(diff_dicts) - i
-                    log.info(f"Stopped by user. {remaining} commits remaining. Re-run to continue.")
                     break
-
-                # Skip if already scored (resume-safe)
                 if db.has_change(diff_data["commit_hash"]):
                     skipped_existing += 1
                     continue
-
-                # Tier 1: Pre-filter (local, fast)
                 if use_prefilter:
                     pre_score = prefilter_score(local_client, local_model, diff_data)
                     if pre_score < prefilter_threshold:
                         prefiltered += 1
                         continue
+                to_score.append(diff_data)
 
-                # Tier 2: Full score (cloud, may fail)
-                try:
-                    result = full_score(cloud_client, cloud_model, diff_data)
-                except (RateLimitError, APIStatusError) as e:
-                    remaining = len(diff_dicts) - i - 1
-                    log.warning(f"API error after scoring {stored} commits: {e}")
-                    log.info(f"{remaining} commits remaining. Re-run to continue.")
-                    rate_limited = True
-                    break
+            if to_score and not _shutdown.is_set():
+                log.info(f"Scoring {len(to_score)} diffs with {max_workers} workers")
 
-                if result is None:
-                    failed += 1
-                    continue
+            # --- Pass 2: Cloud score (parallel) ---
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            future_to_diff = {}
+            try:
+                for diff_data in to_score:
+                    if _shutdown.is_set() or rate_limited:
+                        break
+                    fut = executor.submit(full_score, cloud_client, cloud_model, diff_data)
+                    future_to_diff[fut] = diff_data
 
-                if result.score < min_store_score:
-                    skipped_low += 1
-                    continue
+                for fut in as_completed(future_to_diff):
+                    if _shutdown.is_set():
+                        break
+                    diff_data = future_to_diff[fut]
+                    try:
+                        result = fut.result()
+                    except (RateLimitError, APIStatusError) as e:
+                        log.warning(f"API error after scoring {stored} commits: {e}")
+                        rate_limited = True
+                        break
+                    except Exception as e:
+                        log.error(f"Unexpected error for {diff_data['commit_hash'][:8]}: {e}")
+                        failed += 1
+                        continue
 
-                change_dict = asdict(result)
-                if db.insert_change(scan_id, change_dict):
-                    stored += 1
-                    if stored % 10 == 0:
-                        log.info(f"Progress: {stored} scored, {i+1}/{len(diff_dicts)} processed")
+                    if result is None:
+                        failed += 1
+                        continue
+
+                    if result.score < min_store_score:
+                        skipped_low += 1
+                        continue
+
+                    change_dict = asdict(result)
+                    if db.insert_change(scan_id, change_dict):
+                        stored += 1
+                        if stored % 10 == 0:
+                            log.info(f"Progress: {stored} scored, {stored + failed + skipped_low}/{len(to_score)} processed")
+            except KeyboardInterrupt:
+                _shutdown.set()
+                log.info("\nShutdown requested — cancelling pending work…")
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+
+            if rate_limited:
+                remaining = len(to_score) - stored - failed - skipped_low
+                log.info(f"{remaining} commits remaining. Re-run to continue.")
 
             # Update scan with final counts
             db.update_scan(scan_id, commits_found=len(diffs),
@@ -180,18 +195,23 @@ def run_pipeline(
                 break
 
         # Print summary
-        stats = db.get_stats()
-        log.info(f"\n{'='*60}")
-        log.info(f"Pipeline complete — {stats['total_changes']} total changes in DB")
-        log.info(f"Average score: {stats['avg_score']}")
-        log.info(f"By risk: {stats['by_risk_level']}")
+        if not _shutdown.is_set():
+            stats = db.get_stats()
+            log.info(f"\n{'='*60}")
+            log.info(f"Pipeline complete — {stats['total_changes']} total changes in DB")
+            log.info(f"Average score: {stats['avg_score']}")
+            log.info(f"By risk: {stats['by_risk_level']}")
 
+    except KeyboardInterrupt:
+        _shutdown.set()
+        log.info("\nShutdown requested.")
     finally:
         db.close()
+        if _shutdown.is_set():
+            log.info("Progress saved — re-run to continue.")
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, _handle_sigint)
     run_pipeline(
         config_path=os.environ.get("CONFIG_PATH", "repos.json"),
         data_dir=os.environ.get("DATA_DIR", "/data/repos"),
@@ -205,4 +225,5 @@ if __name__ == "__main__":
         cloud_key=os.environ.get("CLOUD_API_KEY"),
         prefilter_threshold=int(os.environ.get("PREFILTER_THRESHOLD", "3")),
         min_store_score=float(os.environ.get("MIN_STORE_SCORE", "0")),
+        max_workers=int(os.environ.get("SCORING_WORKERS", "5")),
     )
