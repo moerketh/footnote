@@ -85,6 +85,9 @@
             <span class="stat-add">+{change.stats.additions}</span>
             <span class="stat-del">−{change.stats.deletions}</span>
           {/if}
+          {#if change.scored_by}
+            <span class="model-label">{change.scored_by}</span>
+          {/if}
         </div>
       </div>
     {/each}
@@ -253,6 +256,13 @@
 
   .stat-add { color: #3fb950; font-size: 0.8rem; margin-left: 0.5rem; }
   .stat-del { color: #f85149; font-size: 0.8rem; }
+
+  .model-label {
+    font-family: ui-monospace, monospace;
+    font-size: 0.7rem;
+    color: #484f58;
+    margin-left: auto;
+  }
 
   .count {
     text-align: center;

@@ -115,6 +115,13 @@
         <span class="label">Risk Level:</span>
         <span class="value risk-{change.risk_level}">{change.risk_level}</span>
       </div>
+
+      {#if change.scored_by}
+        <div class="meta-row">
+          <span class="label">Model:</span>
+          <span class="value model">{change.scored_by}</span>
+        </div>
+      {/if}
     </div>
 
     {#if change.summary}
@@ -265,7 +272,7 @@
 
   .detail-meta {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.75rem;
     margin-bottom: 1.5rem;
     padding: 1rem;

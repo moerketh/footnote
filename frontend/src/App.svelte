@@ -69,6 +69,7 @@
   function selectChange(change) {
     selectedChange = change;
     view = 'detail';
+    history.pushState({ view: 'detail' }, '');
   }
 
   function filterByTag(tag) {
@@ -85,6 +86,10 @@
   }
 
   function goBack() {
+    history.back();
+  }
+
+  function handlePopState() {
     selectedChange = null;
     view = 'list';
   }
@@ -92,14 +97,19 @@
   onMount(() => {
     fetchChanges();
     fetchStats();
+    history.replaceState({ view: 'list' }, '');
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   });
 
   function showStats() {
     view = 'stats';
+    history.pushState({ view: 'stats' }, '');
   }
 
   function showList() {
     view = 'list';
+    history.pushState({ view: 'list' }, '');
   }
 </script>
 
