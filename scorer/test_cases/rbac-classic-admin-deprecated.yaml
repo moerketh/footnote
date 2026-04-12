@@ -18,7 +18,7 @@ expected:
     availability: true
   change_nature: critical
   actionability: required
-  broad_scope: true
+  broad_scope: existing
   score: 10.0
   risk_level: critical
   rationale: "Deprecation of classic admin roles with hard deadline — users who don't migrate to RBAC will lose all access to Azure resources."

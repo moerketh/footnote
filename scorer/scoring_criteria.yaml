@@ -53,9 +53,17 @@ dimensions:
         description: "Action required to maintain security posture or avoid breakage"
 
   - name: broad_scope
-    type: boolean
-    points: 1
-    description: "Platform-wide or cross-service impact? Affects many tenants/subscriptions?"
+    type: enum
+    levels:
+      none:
+        points: 0
+        description: "No platform-wide impact; affects a single service, feature, or narrow use case"
+      new_only:
+        points: 0.5
+        description: "Affects only newly created resources or accounts; existing deployments are unaffected"
+      existing:
+        points: 1
+        description: "Affects existing deployments, tenants, or subscriptions platform-wide"
 
 risk_thresholds:
   - max: 1
@@ -71,8 +79,10 @@ risk_thresholds:
 
 notes:
   - "HTTP method changes (GET to POST or vice versa) that alter the authorization model are always 'critical' change_nature, regardless of other factors."
-  - "Cross-tenant impact always sets broad_scope=true."
+  - "Cross-tenant impact always sets broad_scope='existing'."
   - "A deprecation with a migration deadline is 'required' actionability, even if the deadline is far out."
   - "Silent fixes (no advisory, found via diff only) are 'critical' change_nature."
   - "Mandatory enforcement of previously optional controls (e.g., MFA, soft-delete) is 'behavior_change', not 'critical', unless it breaks existing functionality."
   - "Availability includes access loss from deprecations and lockouts from enforcement changes, not just outages."
+  - "Changes to example/sample code in documentation that don't reflect a platform behavior change should be 'clarification', not 'behavior_change', since no production workloads are directly affected."
+  - "Default changes that only apply to newly created resources do not affect availability of existing resources; use broad_scope='new_only'."

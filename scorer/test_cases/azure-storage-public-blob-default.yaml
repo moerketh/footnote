@@ -18,7 +18,7 @@ expected:
     availability: false
   change_nature: behavior_change
   actionability: recommended
-  broad_scope: true
-  score: 7.0
+  broad_scope: new_only
+  score: 6.5
   risk_level: high
   rationale: "Default changed to block public blob access for new accounts. Integrity flagged: prevents unauthorized modification of publicly exposed blobs. Existing accounts unaffected but migration recommended."

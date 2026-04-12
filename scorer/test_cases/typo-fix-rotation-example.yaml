@@ -14,7 +14,7 @@ expected:
     availability: false
   change_nature: cosmetic
   actionability: none
-  broad_scope: false
+  broad_scope: none
   score: 0.0
   risk_level: informational
   rationale: "Typo fix with no security impact."

@@ -38,6 +38,7 @@ from score import (
     load_criteria,
     get_max_points,
     build_prompt,
+    normalize_broad_scope,
     VALID_TAGS,
 )
 
@@ -107,7 +108,7 @@ def test_edge_cases(criteria):
 
     # All zeros
     dims_zero = {"cia": {"confidentiality": False, "integrity": False, "availability": False},
-                 "change_nature": "cosmetic", "actionability": "none", "broad_scope": False}
+                 "change_nature": "cosmetic", "actionability": "none", "broad_scope": "none"}
     s = compute_score(dims_zero, criteria)
     if s == 0.0:
         passed += 1
@@ -118,7 +119,7 @@ def test_edge_cases(criteria):
 
     # All maxed
     dims_max = {"cia": {"confidentiality": True, "integrity": True, "availability": True},
-                "change_nature": "critical", "actionability": "required", "broad_scope": True}
+                "change_nature": "critical", "actionability": "required", "broad_scope": "existing"}
     s = compute_score(dims_max, criteria)
     if s == 10.0:
         passed += 1
@@ -129,7 +130,7 @@ def test_edge_cases(criteria):
 
     # Unknown enum value defaults gracefully
     dims_bad = {"cia": {"confidentiality": False, "integrity": False, "availability": False},
-                "change_nature": "nonexistent", "actionability": "none", "broad_scope": False}
+                "change_nature": "nonexistent", "actionability": "none", "broad_scope": "none"}
     s = compute_score(dims_bad, criteria)
     if s == 0.0:
         passed += 1
@@ -182,7 +183,7 @@ def compare_dims(actual: dict, expected: dict) -> list[str]:
         divergent.append("nature")
     if actual.get("actionability") != expected.get("actionability"):
         divergent.append("action")
-    if actual.get("broad_scope", False) != expected.get("broad_scope", False):
+    if normalize_broad_scope(actual.get("broad_scope", "none")) != normalize_broad_scope(expected.get("broad_scope", "none")):
         divergent.append("scope")
     return divergent
 
@@ -252,7 +253,7 @@ def test_live_models(criteria, model_specs: list[str]):
                     "cia": result.get("cia", {}),
                     "change_nature": result.get("change_nature", "cosmetic"),
                     "actionability": result.get("actionability", "none"),
-                    "broad_scope": result.get("broad_scope", False),
+                    "broad_scope": normalize_broad_scope(result.get("broad_scope", "none")),
                 }
                 score = compute_score(dims, criteria)
                 risk = get_risk_level(score, criteria)
@@ -262,7 +263,7 @@ def test_live_models(criteria, model_specs: list[str]):
                 cia_str = format_cia(dims.get("cia", {}))
                 nature = dims.get("change_nature", "?")[:13]
                 action = dims.get("actionability", "?")[:8]
-                scope = "+" if dims.get("broad_scope") else "-"
+                scope = dims.get("broad_scope", "none")[:3]
                 diff_str = f"{score_diff:+.1f}" if score_diff != 0 else "0"
 
                 if not divergent:

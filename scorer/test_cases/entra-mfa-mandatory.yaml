@@ -17,7 +17,7 @@ expected:
     availability: true
   change_nature: behavior_change
   actionability: required
-  broad_scope: true
+  broad_scope: existing
   score: 9.0
   risk_level: critical
   rationale: "Mandatory MFA enforcement for all Azure portal users changes authentication defaults platform-wide, with potential lockout risk for unprepared tenants."

@@ -18,7 +18,7 @@ expected:
     availability: true
   change_nature: critical
   actionability: required
-  broad_scope: true
+  broad_scope: existing
   score: 10.0
   risk_level: critical
   rationale: "Breaking token validation change for all multi-tenant apps — apps not updated will have broken authentication or accept invalid tokens."

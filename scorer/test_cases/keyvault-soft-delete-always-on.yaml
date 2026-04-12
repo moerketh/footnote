@@ -18,7 +18,7 @@ expected:
     availability: true
   change_nature: behavior_change
   actionability: required
-  broad_scope: true
+  broad_scope: existing
   score: 8.0
   risk_level: high
   rationale: "Mandatory soft-delete changes Key Vault deletion behavior platform-wide, affecting cleanup workflows and requiring action from automation that purges vaults."

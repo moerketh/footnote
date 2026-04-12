@@ -83,8 +83,8 @@
           {#if change.scoring_details.actionability}
             <span class="pill action-{change.scoring_details.actionability}">{change.scoring_details.actionability}</span>
           {/if}
-          {#if change.scoring_details.broad_scope}
-            <span class="pill scope">broad scope</span>
+          {#if change.scoring_details.broad_scope && change.scoring_details.broad_scope !== 'none'}
+            <span class="pill scope">{change.scoring_details.broad_scope === 'new_only' ? 'new resources only' : 'broad scope'}</span>
           {/if}
         </div>
       </div>

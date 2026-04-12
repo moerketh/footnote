@@ -36,6 +36,8 @@ VALID_TAGS = [
     "silent-fix",
     "identity",
     "monitoring",
+    "deadline-imminent",
+    "deadline-future",
 ]
 
 PREFILTER_PROMPT = """Rate the security relevance of this documentation change from 0-10.
@@ -66,7 +68,7 @@ def load_criteria(path: Optional[str] = None) -> dict:
     return _criteria_cache
 
 
-def get_max_points(criteria: dict) -> int:
+def get_max_points(criteria: dict) -> float:
     """Calculate maximum possible raw points from criteria dimensions."""
     total = 0
     for dim in criteria["dimensions"]:
@@ -77,7 +79,7 @@ def get_max_points(criteria: dict) -> int:
     return total
 
 
-def resolve_points(dims: dict, dimension: dict) -> int:
+def resolve_points(dims: dict, dimension: dict) -> float:
     """Resolve points for a single dimension from LLM output."""
     name = dimension["name"]
     group = dimension.get("group")
@@ -98,6 +100,15 @@ def resolve_points(dims: dict, dimension: dict) -> int:
         return level["points"]
 
     return 0
+
+
+def normalize_broad_scope(value) -> str:
+    """Normalize broad_scope from bool (legacy) or string to enum value."""
+    if isinstance(value, bool):
+        return "existing" if value else "none"
+    if isinstance(value, str) and value in ("none", "new_only", "existing"):
+        return value
+    return "none"
 
 
 def compute_score(dims: dict, criteria: Optional[dict] = None) -> float:
@@ -296,7 +307,7 @@ def full_score(client: OpenAI, model: str, diff_data: dict) -> Optional[ScoredCh
             "cia": result.get("cia", {}),
             "change_nature": result.get("change_nature", "cosmetic"),
             "actionability": result.get("actionability", "none"),
-            "broad_scope": result.get("broad_scope", False),
+            "broad_scope": normalize_broad_scope(result.get("broad_scope", "none")),
         }
 
         # Compute score deterministically

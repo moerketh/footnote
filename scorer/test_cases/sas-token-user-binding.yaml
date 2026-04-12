@@ -19,7 +19,7 @@ expected:
     availability: false
   change_nature: new_feature
   actionability: recommended
-  broad_scope: false
+  broad_scope: none
   score: 5.0
   risk_level: medium
   rationale: "New user-delegation SAS provides identity-bound access tokens as a more secure alternative to account-key SAS."

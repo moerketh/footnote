@@ -15,7 +15,7 @@ expected:
     availability: true
   change_nature: critical
   actionability: required
-  broad_scope: true
+  broad_scope: existing
   score: 10.0
   risk_level: critical
   rationale: "HTTP method change from GET to POST for DynamicInvoke proxy closed a cross-tenant credential access vulnerability exploitable by Reader-role users."

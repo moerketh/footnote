@@ -39,7 +39,7 @@ Respond with ONLY this JSON structure, no other text:
   }},
   "change_nature": "cosmetic|clarification|new_feature|behavior_change|critical",
   "actionability": "none|recommended|required",
-  "broad_scope": true/false,
+  "broad_scope": "none|new_only|existing",
   "rationale": "One sentence explaining the primary security impact.",
   "summary": "2-3 sentence summary of what changed and why it matters.",
   "tags": ["tag1", "tag2"],
