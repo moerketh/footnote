@@ -162,7 +162,8 @@ class Database:
                     min_score: float = 0, tag: Optional[str] = None,
                     repo: Optional[str] = None,
                     risk_level: Optional[str] = None,
-                    search: Optional[str] = None) -> list[dict]:
+                    search: Optional[str] = None,
+                    service: Optional[str] = None) -> list[dict]:
         """Query changes with filters."""
         query = "SELECT DISTINCT c.* FROM changes c"
         params = []
@@ -189,6 +190,10 @@ class Database:
         if search:
             wheres.append("(c.summary LIKE ? OR c.commit_message LIKE ?)")
             params.extend([f"%{search}%", f"%{search}%"])
+
+        if service:
+            wheres.append('c.services LIKE ?')
+            params.append(f'%"{service}"%')
 
         if joins:
             query += " " + " ".join(joins)

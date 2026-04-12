@@ -17,12 +17,14 @@
   let riskLevel = $state('');
   let searchQuery = $state('');
   let selectedTag = $state('');
+  let selectedService = $state('');
   let selectedRepo = $state('');
   let offset = $state(0);
   let hasMore = $state(false);
   const LIMIT = 50;
 
   let repos = $derived([...new Set(changes.map(c => c.repo_name))].sort());
+  let services = $state([]);
 
   async function fetchChanges(append = false) {
     loading = true;
@@ -33,6 +35,7 @@
       if (riskLevel) params.append('risk_level', riskLevel);
       if (searchQuery) params.append('search', searchQuery);
       if (selectedTag) params.append('tag', selectedTag);
+      if (selectedService) params.append('service', selectedService);
       if (selectedRepo) params.append('repo', selectedRepo);
       params.append('limit', LIMIT);
       params.append('offset', append ? offset : 0);
@@ -66,6 +69,17 @@
     }
   }
 
+  async function fetchServices() {
+    try {
+      const res = await fetch(`${API_URL}/services`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      services = data.services || [];
+    } catch (err) {
+      console.error('Services error:', err);
+    }
+  }
+
   function selectChange(change) {
     selectedChange = change;
     view = 'detail';
@@ -85,6 +99,19 @@
     fetchChanges();
   }
 
+  function filterByService(service) {
+    selectedService = service;
+    offset = 0;
+    view = 'list';
+    fetchChanges();
+  }
+
+  function clearService() {
+    selectedService = '';
+    offset = 0;
+    fetchChanges();
+  }
+
   function goBack() {
     history.back();
   }
@@ -97,6 +124,7 @@
   onMount(() => {
     fetchChanges();
     fetchStats();
+    fetchServices();
     history.replaceState({ view: 'list' }, '');
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -166,6 +194,25 @@
           <span class="active-tag">🏷️ {selectedTag} <button class="clear-tag" onclick={clearTag}>✕</button></span>
         </div>
       {/if}
+
+      {#if selectedService}
+        <div class="filter-group">
+          <span class="active-tag">☁️ {selectedService} <button class="clear-tag" onclick={clearService}>✕</button></span>
+        </div>
+      {/if}
+
+      {#if services.length > 0}
+        <div class="filter-pills">
+          {#each services as svc}
+            <span class="filter-pill" class:active={selectedService === svc.service}
+              role="button" tabindex="0"
+              onclick={() => filterByService(svc.service)}
+              onkeydown={(e) => e.key === 'Enter' && filterByService(svc.service)}>
+              {svc.service} <span class="pill-count">{svc.count}</span>
+            </span>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     {#if loading}
@@ -173,7 +220,7 @@
     {:else if error}
       <div class="error">Error: {error}</div>
     {:else}
-      <ChangesList {changes} onSelect={selectChange} onTagClick={filterByTag} />
+      <ChangesList {changes} onSelect={selectChange} onTagClick={filterByTag} onServiceClick={filterByService} />
 
       {#if hasMore}
         <div class="load-more">
@@ -185,7 +232,7 @@
     {/if}
 
   {:else if view === 'detail'}
-    <ChangeDetail change={selectedChange} onBack={goBack} />
+    <ChangeDetail change={selectedChange} onBack={goBack} onServiceClick={filterByService} />
 
   {:else if view === 'stats'}
     <Stats {stats} onBack={showList} />
@@ -306,6 +353,43 @@
     padding: 0;
     font-size: 0.8rem;
     line-height: 1;
+  }
+
+  .filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .filter-pill {
+    background: #388bfd33;
+    color: #58a6ff;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .filter-pill:hover {
+    background: #388bfd66;
+  }
+
+  .filter-pill.active {
+    background: #388bfd66;
+    border: 1px solid #58a6ff;
+  }
+
+  .pill-count {
+    background: #30363d;
+    color: #8b949e;
+    font-size: 0.7rem;
+    padding: 0 0.35rem;
+    border-radius: 8px;
   }
 
   .score-badge {

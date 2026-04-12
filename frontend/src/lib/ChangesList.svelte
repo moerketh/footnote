@@ -2,6 +2,7 @@
   export let changes = [];
   export let onSelect = (change) => {};
   export let onTagClick = (tag) => {};
+  export let onServiceClick = (service) => {};
 
   function formatDate(dateStr) {
     const date = new Date(dateStr);
@@ -60,16 +61,21 @@
           <div class="rationale">{change.rationale.length > 120 ? change.rationale.slice(0, 120) + '...' : change.rationale}</div>
         {/if}
 
-        {#if change.tags?.length > 0}
+        {#if change.tags?.length > 0 || change.services?.length > 0}
           <div class="tags">
-            {#each change.tags.slice(0, 5) as tag}
+            {#each (change.tags || []).slice(0, 5) as tag}
               <span class="tag" role="button" tabindex="0"
                 on:click|stopPropagation={() => onTagClick(tag)}
                 on:keydown={(e) => e.key === 'Enter' && onTagClick(tag)}>{tag}</span>
             {/each}
-            {#if change.tags.length > 5}
+            {#if change.tags?.length > 5}
               <span class="tag more">+{change.tags.length - 5}</span>
             {/if}
+            {#each (change.services || []) as service}
+              <span class="tag" role="button" tabindex="0"
+                on:click|stopPropagation={() => onServiceClick(service)}
+                on:keydown={(e) => e.key === 'Enter' && onServiceClick(service)}>{service}</span>
+            {/each}
           </div>
         {/if}
 

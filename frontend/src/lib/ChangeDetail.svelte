@@ -1,6 +1,7 @@
 <script>
   export let change = null;
   export let onBack = () => {};
+  export let onServiceClick = (service) => {};
 
   function formatDate(dateStr) {
     const date = new Date(dateStr);
@@ -147,7 +148,9 @@
         <h3>☁️ Affected Services</h3>
         <div class="services-list">
           {#each change.services as service}
-            <span class="service">{service}</span>
+            <span class="service clickable" role="button" tabindex="0"
+              on:click={() => onServiceClick(service)}
+              on:keydown={(e) => e.key === 'Enter' && onServiceClick(service)}>{service}</span>
           {/each}
         </div>
       </section>
@@ -356,6 +359,15 @@
     padding: 0.3rem 0.75rem;
     border-radius: 12px;
     font-size: 0.85rem;
+  }
+
+  .service.clickable {
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .service.clickable:hover {
+    background: #1f6feb66;
   }
 
   .file-list {

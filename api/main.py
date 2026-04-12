@@ -51,12 +51,14 @@ def list_changes(
     repo: Optional[str] = None,
     risk_level: Optional[str] = None,
     search: Optional[str] = None,
+    service: Optional[str] = None,
 ):
     db = get_db()
     try:
         changes = db.get_changes(
             limit=limit, offset=offset, min_score=min_score,
             tag=tag, repo=repo, risk_level=risk_level, search=search,
+            service=service,
         )
         return {"changes": changes, "count": len(changes), "offset": offset, "limit": limit}
     finally:
