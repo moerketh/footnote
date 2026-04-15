@@ -10,6 +10,7 @@ services:
       - DB_PATH=/data/db/footnote.db
       - API_HOST=0.0.0.0
       - API_PORT=8000
+      - INGEST_TOKEN=${INGEST_TOKEN:-dev-token}
     restart: unless-stopped
 
   frontend:
@@ -20,16 +21,18 @@ services:
       - "8080:80"
     depends_on:
       - api
+    environment:
+      - API_UPSTREAM=api:8000
     restart: unless-stopped
 
   pipeline:
     build: .
     command: python pipeline.py
     volumes:
-      - db-data:/data/db
       - repo-data:/data/repos
     environment:
-      - DB_PATH=/data/db/footnote.db
+      - API_URL=http://api:8000
+      - INGEST_TOKEN=${INGEST_TOKEN:-dev-token}
       - DATA_DIR=/data/repos
       - CONFIG_PATH=repos.json
       - BACKFILL_DAYS=${BACKFILL_DAYS:-30}
@@ -41,7 +44,6 @@ services:
       - LOCAL_MODEL=${LOCAL_MODEL:-gemma4:26b}
       - PREFILTER_THRESHOLD=${PREFILTER_THRESHOLD:-3}
       - MIN_STORE_SCORE=${MIN_STORE_SCORE:-0}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
     profiles:
       - pipeline
 

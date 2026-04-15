@@ -52,6 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_changes_score ON changes(score DESC);
 CREATE INDEX IF NOT EXISTS idx_changes_date ON changes(commit_date DESC);
 CREATE INDEX IF NOT EXISTS idx_changes_risk ON changes(risk_level);
 CREATE INDEX IF NOT EXISTS idx_changes_repo ON changes(repo_name);
+CREATE INDEX IF NOT EXISTS idx_changes_hash ON changes(commit_hash);
 CREATE INDEX IF NOT EXISTS idx_change_tags_tag ON change_tags(tag);
 """
 
@@ -62,6 +63,7 @@ class Database:
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA busy_timeout=30000")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self._init_schema()
 
@@ -220,6 +222,22 @@ class Database:
             del d["diff_full"]
             results.append(d)
         return results
+
+    def get_change_by_hash(self, commit_hash: str) -> Optional[dict]:
+        """Get a single change by commit hash with full diff."""
+        row = self.conn.execute("SELECT * FROM changes WHERE commit_hash = ?", (commit_hash,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["files_changed"] = json.loads(d["files_changed"] or "[]")
+        d["services"] = json.loads(d["services"] or "[]")
+        d["stats"] = json.loads(d["stats"] or "{}")
+        d["scoring_details"] = json.loads(d.get("scoring_details") or "{}")
+        tags = self.conn.execute(
+            "SELECT tag FROM change_tags WHERE change_id = ?", (d["id"],)
+        ).fetchall()
+        d["tags"] = [t["tag"] for t in tags]
+        return d
 
     def get_change(self, change_id: int) -> Optional[dict]:
         """Get a single change with full diff."""

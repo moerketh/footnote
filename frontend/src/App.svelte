@@ -80,16 +80,33 @@
     }
   }
 
+  async function fetchChangeByHash(commitHash) {
+    loading = true;
+    error = null;
+    try {
+      const res = await fetch(`${API_URL}/changes/hash/${encodeURIComponent(commitHash)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      selectedChange = await res.json();
+      view = 'detail';
+    } catch (err) {
+      error = `Failed to load change ${commitHash.slice(0, 8)}: ${err.message}`;
+      view = 'list';
+    } finally {
+      loading = false;
+    }
+  }
+
   function selectChange(change) {
     selectedChange = change;
     view = 'detail';
-    history.pushState({ view: 'detail' }, '');
+    location.hash = `#/change/${change.commit_hash}`;
   }
 
   function filterByTag(tag) {
     selectedTag = tag;
     offset = 0;
     view = 'list';
+    location.hash = '#/';
     fetchChanges();
   }
 
@@ -103,6 +120,7 @@
     selectedService = service;
     offset = 0;
     view = 'list';
+    location.hash = '#/';
     fetchChanges();
   }
 
@@ -116,28 +134,43 @@
     history.back();
   }
 
-  function handlePopState() {
-    selectedChange = null;
-    view = 'list';
+  function handleHashChange() {
+    const hash = location.hash || '#/';
+    if (hash.startsWith('#/change/')) {
+      const commitHash = hash.slice('#/change/'.length);
+      if (selectedChange && selectedChange.commit_hash === commitHash) return;
+      fetchChangeByHash(commitHash);
+    } else if (hash === '#/stats') {
+      view = 'stats';
+      selectedChange = null;
+    } else {
+      view = 'list';
+      selectedChange = null;
+    }
   }
 
   onMount(() => {
     fetchChanges();
     fetchStats();
     fetchServices();
-    history.replaceState({ view: 'list' }, '');
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    // If there's a hash on load, navigate to it; otherwise set default
+    if (location.hash && location.hash !== '#/') {
+      handleHashChange();
+    } else {
+      location.hash = '#/';
+    }
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   });
 
   function showStats() {
     view = 'stats';
-    history.pushState({ view: 'stats' }, '');
+    location.hash = '#/stats';
   }
 
   function showList() {
     view = 'list';
-    history.pushState({ view: 'list' }, '');
+    location.hash = '#/';
   }
 </script>
 
@@ -198,19 +231,6 @@
       {#if selectedService}
         <div class="filter-group">
           <span class="active-tag">☁️ {selectedService} <button class="clear-tag" onclick={clearService}>✕</button></span>
-        </div>
-      {/if}
-
-      {#if services.length > 0}
-        <div class="filter-pills">
-          {#each services as svc}
-            <span class="filter-pill" class:active={selectedService === svc.service}
-              role="button" tabindex="0"
-              onclick={() => filterByService(svc.service)}
-              onkeydown={(e) => e.key === 'Enter' && filterByService(svc.service)}>
-              {svc.service} <span class="pill-count">{svc.count}</span>
-            </span>
-          {/each}
         </div>
       {/if}
     </div>

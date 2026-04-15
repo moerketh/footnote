@@ -15,16 +15,21 @@ Microsoft frequently updates Azure documentation to reflect changes in default b
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌──────────┐     ┌──────────┐
-│   Scanner    │────▶│   Scorer    │────▶│   API    │────▶│   Web    │
-│  (git diff)  │     │  (LLM tier) │     │ (FastAPI) │     │  (SPA)   │
-└─────────────┘     └─────────────┘     └──────────┘     └──────────┘
-       │                    │                  │
-       └────────────────────┴──────────────────┘
-                           │
-                     ┌───────────┐
-                     │  SQLite   │
-                     └───────────┘
+│   Scanner    │────▶│   Scorer    │────▶│ Pipeline │────▶│   API    │
+│  (git diff)  │     │  (LLM tier) │     │ (HTTP)   │     │ (FastAPI) │
+└─────────────┘     └─────────────┘     └──────────┘     └────┬─────┘
+                                                              │
+                                                        ┌─────┴─────┐
+                                                        │  SQLite   │
+                                                        └───────────┘
+                                                              │
+                                                        ┌─────┴─────┐
+                                                        │   Web     │
+                                                        │  (SPA)    │
+                                                        └───────────┘
 ```
+
+The pipeline is the sole writer to the database — it calls the API's authenticated `/ingest/*` endpoints via HTTP (bearer token). The API handles all SQLite access, eliminating lock contention.
 
 ### Components
 
@@ -65,16 +70,21 @@ Microsoft frequently updates Azure documentation to reflect changes in default b
 - `monitoring` — Logging, auditing, diagnostic changes
 
 #### 4. API (`api/`)
-- **FastAPI** with SQLite backend
-- Endpoints:
+- **FastAPI** with SQLite backend (sole database writer)
+- Public read endpoints (served to frontend via nginx proxy):
   - `GET /changes` — paginated, filterable (by tag, score, date range, service)
   - `GET /changes/{id}` — single change detail with full diff
   - `GET /tags` — list all tags with counts
   - `GET /services` — list all affected services with counts
   - `GET /stats` — dashboard stats (total changes, avg score, trends)
   - `GET /feed` — RSS/Atom feed for high-score changes
-  - `POST /scan` — trigger manual scan (auth required)
-- CORS enabled for frontend
+- Authenticated ingest endpoints (called by pipeline, bearer token auth):
+  - `POST /ingest/scan` — create a scan record
+  - `GET /ingest/last_scan` — get last scan hash for a repo
+  - `GET /ingest/has_change` — check if a commit was already scored
+  - `POST /ingest/change` — insert a scored change
+  - `PATCH /ingest/scan/{scan_id}` — update scan with final counts
+- API is internal-only in Azure (no public ingress); nginx proxies public read endpoints
 
 #### 5. Web Frontend (`web/`)
 - Lightweight SPA (Svelte or HTMX — TBD)
@@ -143,40 +153,40 @@ CREATE INDEX idx_change_tags_tag ON change_tags(tag);
 
 ```yaml
 services:
-  scanner:
-    build: ./scanner
-    volumes:
-      - repo-data:/data/repos
-      - db-data:/data/db
-    environment:
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - SCORER_URL=http://scorer:8001
-    # Runs on cron schedule (inside container) or triggered via API
-
-  scorer:
-    build: ./scorer
-    volumes:
-      - db-data:/data/db
-    environment:
-      - GEMMA_URL=${GEMMA_URL}        # Local Ollama for tier 1
-      - CLOUD_API_KEY=${CLOUD_API_KEY}  # For tier 2 scoring
-      - CLOUD_MODEL=${CLOUD_MODEL}
-
   api:
-    build: ./api
+    build: .
+    command: python api/main.py
     ports:
       - "8000:8000"
     volumes:
       - db-data:/data/db
-    depends_on:
-      - scorer
+    environment:
+      - DB_PATH=/data/db/footnote.db
+      - INGEST_TOKEN=${INGEST_TOKEN:-dev-token}
 
-  web:
-    build: ./web
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     ports:
-      - "3000:3000"
+      - "8080:80"
     depends_on:
       - api
+    environment:
+      - API_UPSTREAM=api:8000
+
+  pipeline:
+    build: .
+    command: python pipeline.py
+    volumes:
+      - repo-data:/data/repos
+    environment:
+      - API_URL=http://api:8000
+      - INGEST_TOKEN=${INGEST_TOKEN:-dev-token}
+      - CLOUD_OLLAMA_URL=${CLOUD_OLLAMA_URL}
+      - CLOUD_API_KEY=${CLOUD_API_KEY}
+    profiles:
+      - pipeline
 
 volumes:
   repo-data:
@@ -233,11 +243,11 @@ The scanner is designed to work with any GitHub repo. Config file:
 - [ ] Dark mode
 
 ### Phase 3 — Production
+- [x] Authentication for ingest endpoints (bearer token)
 - [ ] CI/CD pipeline (GitHub Actions → Docker registry → deploy)
 - [ ] Proper secret management
 - [ ] Rate limiting on API
-- [ ] Authentication for admin endpoints
-- [ ] Cloud deployment option
+- [ ] Cloud deployment option (Azure Container Apps)
 - [ ] Multi-repo support enabled
 - [ ] Monitoring/alerting for scan failures
 

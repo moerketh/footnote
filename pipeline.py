@@ -2,8 +2,8 @@
 """
 Footnote Pipeline — Orchestrates scan → score → store cycle.
 
-Resumable: each scored commit is persisted immediately. On crash + restart,
-already-scored commits are skipped (DB lookup, no LLM call).
+Resumable: each scored commit is persisted immediately via the API.
+On crash + restart, already-scored commits are skipped (API lookup, no LLM call).
 """
 
 import os
@@ -14,6 +14,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
 
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scanner.scan import load_repos, scan_repo
@@ -21,7 +25,6 @@ from scorer.score import (
     get_client, prefilter_score, full_score,
     RateLimitError, APIStatusError,
 )
-from api.database import Database
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("footnote.pipeline")
@@ -29,10 +32,59 @@ log = logging.getLogger("footnote.pipeline")
 _shutdown = threading.Event()
 
 
+class ApiClient:
+    """HTTP client for the Footnote API ingest endpoints."""
+
+    def __init__(self, base_url: str, token: str):
+        self.base_url = base_url.rstrip("/")
+        self.session = requests.Session()
+        self.session.headers["Authorization"] = f"Bearer {token}"
+        # Retry with backoff for transient network errors
+        retry = Retry(total=3, backoff_factor=1, status_forcelist=[502, 503, 504])
+        self.session.mount("http://", HTTPAdapter(max_retries=retry))
+        self.session.mount("https://", HTTPAdapter(max_retries=retry))
+
+    def get_last_scan_hash(self, repo: str) -> str | None:
+        r = self.session.get(f"{self.base_url}/ingest/last_scan", params={"repo": repo})
+        r.raise_for_status()
+        return r.json()["commit_hash"]
+
+    def has_change(self, commit_hash: str) -> bool:
+        r = self.session.get(f"{self.base_url}/ingest/has_change", params={"commit_hash": commit_hash})
+        r.raise_for_status()
+        return r.json()["exists"]
+
+    def create_scan(self, repo: str, commit_hash: str,
+                    commits_found: int = 0, commits_scored: int = 0) -> int:
+        r = self.session.post(f"{self.base_url}/ingest/scan", params={
+            "repo": repo, "commit_hash": commit_hash,
+            "commits_found": commits_found, "commits_scored": commits_scored,
+        })
+        r.raise_for_status()
+        return r.json()["scan_id"]
+
+    def insert_change(self, scan_id: int, change: dict) -> int | None:
+        r = self.session.post(f"{self.base_url}/ingest/change", params={"scan_id": scan_id}, json=change)
+        r.raise_for_status()
+        return r.json()["change_id"]
+
+    def update_scan(self, scan_id: int, commits_found: int, commits_scored: int):
+        r = self.session.patch(f"{self.base_url}/ingest/scan/{scan_id}", params={
+            "commits_found": commits_found, "commits_scored": commits_scored,
+        })
+        r.raise_for_status()
+
+    def get_stats(self) -> dict:
+        r = self.session.get(f"{self.base_url}/stats")
+        r.raise_for_status()
+        return r.json()
+
+
 def run_pipeline(
     config_path: str = "repos.json",
     data_dir: str = "/data/repos",
-    db_path: str = "/data/db/footnote.db",
+    api_url: str = "http://localhost:8000",
+    ingest_token: str = "",
     backfill_days: int = 30,
     clone_depth: int = 6000,
     local_url: str = None,
@@ -44,7 +96,7 @@ def run_pipeline(
     min_store_score: float = 0,
     max_workers: int = 5,
 ):
-    db = Database(db_path)
+    api = ApiClient(api_url, ingest_token)
 
     # Set up LLM clients once
     use_prefilter = bool(local_url)
@@ -67,7 +119,7 @@ def run_pipeline(
             log.info(f"{'='*60}")
 
             # Check last scan
-            last_hash = db.get_last_scan_hash(repo_config.name)
+            last_hash = api.get_last_scan_hash(repo_config.name)
             if last_hash:
                 log.info(f"Last scan hash: {last_hash[:12]}")
             else:
@@ -87,12 +139,12 @@ def run_pipeline(
 
             if not diffs:
                 log.info("No new meaningful diffs found")
-                db.create_scan(repo=repo_config.name, commit_hash=head_hash,
+                api.create_scan(repo=repo_config.name, commit_hash=head_hash,
                                commits_found=0, commits_scored=0)
                 continue
 
             # Create scan record upfront (so we have a scan_id for storing changes)
-            scan_id = db.create_scan(
+            scan_id = api.create_scan(
                 repo=repo_config.name,
                 commit_hash=head_hash,
                 commits_found=len(diffs),
@@ -112,7 +164,7 @@ def run_pipeline(
             for diff_data in diff_dicts:
                 if _shutdown.is_set():
                     break
-                if db.has_change(diff_data["commit_hash"]):
+                if api.has_change(diff_data["commit_hash"]):
                     skipped_existing += 1
                     continue
                 if use_prefilter:
@@ -122,6 +174,8 @@ def run_pipeline(
                         continue
                 to_score.append(diff_data)
 
+            if not _shutdown.is_set():
+                log.info(f"Filtered {len(diff_dicts)} diffs: {skipped_existing} already-scored, {prefiltered} pre-filtered, {len(to_score)} to score")
             if to_score and not _shutdown.is_set():
                 log.info(f"Scoring {len(to_score)} diffs with {max_workers} workers")
 
@@ -159,7 +213,7 @@ def run_pipeline(
                         continue
 
                     change_dict = asdict(result)
-                    if db.insert_change(scan_id, change_dict):
+                    if api.insert_change(scan_id, change_dict):
                         stored += 1
                         if stored % 10 == 0:
                             log.info(f"Progress: {stored} scored, {stored + failed + skipped_low}/{len(to_score)} processed")
@@ -174,7 +228,7 @@ def run_pipeline(
                 log.info(f"{remaining} commits remaining. Re-run to continue.")
 
             # Update scan with final counts
-            db.update_scan(scan_id, commits_found=len(diffs),
+            api.update_scan(scan_id, commits_found=len(diffs),
                            commits_scored=stored)
 
             if skipped_existing:
@@ -196,7 +250,7 @@ def run_pipeline(
 
         # Print summary
         if not _shutdown.is_set():
-            stats = db.get_stats()
+            stats = api.get_stats()
             log.info(f"\n{'='*60}")
             log.info(f"Pipeline complete — {stats['total_changes']} total changes in DB")
             log.info(f"Average score: {stats['avg_score']}")
@@ -205,17 +259,14 @@ def run_pipeline(
     except KeyboardInterrupt:
         _shutdown.set()
         log.info("\nShutdown requested.")
-    finally:
-        db.close()
-        if _shutdown.is_set():
-            log.info("Progress saved — re-run to continue.")
 
 
 if __name__ == "__main__":
     run_pipeline(
         config_path=os.environ.get("CONFIG_PATH", "repos.json"),
         data_dir=os.environ.get("DATA_DIR", "/data/repos"),
-        db_path=os.environ.get("DB_PATH", "/data/db/footnote.db"),
+        api_url=os.environ.get("API_URL", "http://localhost:8000"),
+        ingest_token=os.environ.get("INGEST_TOKEN", ""),
         backfill_days=int(os.environ.get("BACKFILL_DAYS", "30")),
         clone_depth=int(os.environ.get("CLONE_DEPTH", "6000")),
         local_url=os.environ.get("LOCAL_OLLAMA_URL"),

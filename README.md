@@ -12,9 +12,10 @@ Microsoft frequently updates Azure documentation to reflect changes in default b
 
 - **Scanner:** Python + GitPython — clone, diff, pre-filter noise
 - **Scorer:** Tiered LLM pipeline — local pre-filter → structured dimension classification → deterministic score
-- **API:** FastAPI + SQLite
+- **Pipeline:** Calls the API's ingest endpoints (bearer token auth) — no direct DB access
+- **API:** FastAPI + SQLite — sole database writer; serves both public read endpoints and authenticated ingest endpoints
 - **Frontend:** Svelte
-- **Infra:** Docker Compose
+- **Infra:** Docker Compose / Azure Container Apps
 
 ## Scoring
 
@@ -40,16 +41,16 @@ See `scorer/scoring_criteria.yaml` for the full definition and `scorer/test_case
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys and set INGEST_TOKEN
 docker compose up --build
 ```
 
 ### Run the scorer pipeline
 
-The pipeline (scanner + scorer) runs as a separate Docker Compose profile:
+The pipeline calls the API's ingest endpoints (no direct DB access). It requires `INGEST_TOKEN` to authenticate:
 
 ```bash
-docker compose run --rm --build -e BACKFILL_DAYS=30 -e CLONE_DEPTH=20000 pipeline
+docker compose run --rm --build -e BACKFILL_DAYS=30 -e CLONE_DEPTH=2000 pipeline
 ```
 
 ## Development
@@ -63,10 +64,6 @@ docker compose cp seed.py api:/app/seed.py && docker compose exec api python /ap
 ```
 
 This inserts 8 sample changes across Azure, AWS, and GCP docs with varied scores, risk levels, tags, and affected services.
-
-## Status
-
-Under construction — Phase 1 prototype.
 
 ## Inspiration
 
