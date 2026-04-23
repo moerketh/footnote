@@ -54,11 +54,11 @@
         </div>
 
         <div class="message">
-          {change.commit_message?.split('\n')[0] || 'No message'}
+          {change.rationale || change.commit_message?.split('\n')[0] || 'No message'}
         </div>
 
-        {#if change.rationale}
-          <div class="rationale">{change.rationale.length > 120 ? change.rationale.slice(0, 120) + '...' : change.rationale}</div>
+        {#if change.rationale && change.commit_message}
+          <div class="commit-msg">{change.commit_message.split('\n')[0]}</div>
         {/if}
 
         {#if change.tags?.length > 0 || change.services?.length > 0}
@@ -204,7 +204,7 @@
     line-height: 1.4;
   }
 
-  .rationale {
+  .commit-msg {
     font-size: 0.85rem;
     color: #8b949e;
     font-style: italic;

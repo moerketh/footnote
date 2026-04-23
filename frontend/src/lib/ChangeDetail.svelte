@@ -60,7 +60,7 @@
             {change.commit_hash?.slice(0, 12)}
           </a>
         </div>
-        <h2>{change.commit_message?.split('\n')[0] || 'Untitled Change'}</h2>
+        <h2>{change.rationale || change.commit_message?.split('\n')[0] || 'Untitled Change'}</h2>
       </div>
 
       <div class="score-badge {getScoreClass(change.score || 0)}">
@@ -97,6 +97,11 @@
     {/if}
 
     <div class="detail-meta">
+      <div class="meta-row">
+        <span class="label">Commit Message:</span>
+        <span class="value commit-msg">{change.commit_message?.split('\n')[0] || 'N/A'}</span>
+      </div>
+
       <div class="meta-row">
         <span class="label">Repository:</span>
         <span class="value">{change.repo_name}</span>
@@ -313,6 +318,11 @@
 
   .value.risk-low {
     color: #d4a72c;
+  }
+
+  .value.commit-msg {
+    font-style: italic;
+    color: #8b949e;
   }
 
   section {
