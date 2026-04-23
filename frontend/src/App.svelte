@@ -26,6 +26,22 @@
   let repos = $derived([...new Set(changes.map(c => c.repo_name))].sort());
   let services = $state([]);
 
+  function applyUrlParams() {
+    const params = new URLSearchParams(location.search);
+    if (params.has('min_score')) {
+      const val = parseInt(params.get('min_score'), 10);
+      if (val >= 0 && val <= 10) minScore = val;
+    }
+    if (params.has('risk_level')) {
+      const val = params.get('risk_level');
+      if (['critical', 'high', 'medium', 'low', 'informational'].includes(val)) riskLevel = val;
+    }
+    if (params.has('tag')) selectedTag = params.get('tag');
+    if (params.has('service')) selectedService = params.get('service');
+    if (params.has('repo')) selectedRepo = params.get('repo');
+    if (params.has('search')) searchQuery = params.get('search');
+  }
+
   async function fetchChanges(append = false) {
     loading = true;
     error = null;
@@ -150,6 +166,7 @@
   }
 
   onMount(() => {
+    applyUrlParams();
     fetchChanges();
     fetchStats();
     fetchServices();
@@ -210,7 +227,7 @@
         <input type="text" placeholder="Search commits..." bind:value={searchQuery} oninput={() => { offset = 0; fetchChanges(); }} />
       </div>
 
-      {#if repos.length > 1}
+      {#if repos.length > 1 || selectedRepo}
         <div class="filter-group">
           <label>Repo:</label>
           <select bind:value={selectedRepo} onchange={() => { offset = 0; fetchChanges(); }}>

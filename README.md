@@ -55,6 +55,25 @@ The pipeline calls the API's ingest endpoints (no direct DB access). It requires
 docker compose run --rm --build -e BACKFILL_DAYS=30 -e CLONE_DEPTH=2000 pipeline
 ```
 
+## URL Parameters
+
+The web interface supports query parameters to pre-fill filters on load. This is useful for sharing filtered views or bookmarking specific queries.
+
+| Parameter   | Example                        | Description                          |
+|-------------|--------------------------------|--------------------------------------|
+| `min_score` | `?min_score=7`                 | Minimum security score (0–10)        |
+| `risk_level`| `?risk_level=critical`         | Risk level filter (critical/high/medium/low/informational) |
+| `tag`       | `?tag=auth-change`             | Filter by tag                        |
+| `service`   | `?service=Key%20Vault`         | Filter by affected service           |
+| `repo`      | `?repo=azure-docs`             | Filter by repository                 |
+| `search`    | `?search=MFA`                  | Search commit messages and summaries |
+
+Parameters can be combined and work alongside hash routing:
+
+```
+https://ftn-web.kindforest-80fae3b1.westeurope.azurecontainerapps.io/?min_score=7&risk_level=critical#/
+```
+
 ## Development
 
 ### Seed the database with test data
