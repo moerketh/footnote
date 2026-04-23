@@ -13,9 +13,11 @@
   let selectedChange = $state(null);
   let view = $state('list');
 
-  let minScore = $state(0);
-  let riskLevel = $state('');
-  let searchQuery = $state('');
+  // Read initial filters from URL query params
+  const urlParams = new URLSearchParams(window.location.search);
+  let minScore = $state(parseInt(urlParams.get('min_score') || '0', 10));
+  let riskLevel = $state(urlParams.get('risk_level') || '');
+  let searchQuery = $state(urlParams.get('search') || '');
   let selectedTag = $state('');
   let selectedService = $state('');
   let selectedRepo = $state('');
