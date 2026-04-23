@@ -2,6 +2,8 @@
 
 *The real story is always in the footnotes.*
 
+🌐 **[Public Preview](https://ftn-web.kindforest-80fae3b1.westeurope.azurecontainerapps.io/#/)**
+
 Track security-relevant changes in documentation repositories. Starting with [Azure Docs](https://github.com/MicrosoftDocs/azure-docs), Footnote monitors commits, scores them for security impact using LLMs, and serves the results through a searchable web interface.
 
 ## Why
