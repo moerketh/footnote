@@ -9,6 +9,7 @@ import json
 import os
 import re
 import logging
+import shutil
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -91,9 +92,13 @@ def clone_or_pull(repo_config: RepoConfig, base_dir: str = "/data/repos",
         repo = Repo(repo_path)
         origin = repo.remotes.origin
         try:
-            origin.fetch()
+            origin.fetch(depth=depth)
             repo.git.reset("--hard", f"origin/{repo_config.branch}")
         except GitCommandError as e:
+            if "inflate" in str(e) or "pack" in str(e):
+                log.warning(f"Git objects corrupted, re-cloning {repo_config.name}...")
+                shutil.rmtree(repo_path)
+                return clone_or_pull(repo_config, base_dir, depth)
             log.error(f"Failed to pull {repo_config.name}: {e}")
             raise
     else:
