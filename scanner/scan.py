@@ -95,9 +95,10 @@ def clone_or_pull(repo_config: RepoConfig, base_dir: str = "/data/repos",
             origin.fetch(depth=depth)
             repo.git.reset("--hard", f"origin/{repo_config.branch}")
         except GitCommandError as e:
-            if "inflate" in str(e) or "pack" in str(e):
-                log.warning(f"Git objects corrupted, re-cloning {repo_config.name}...")
-                shutil.rmtree(repo_path)
+            err_str = str(e)
+            if "inflate" in err_str or "pack" in err_str or "shallow.lock" in err_str:
+                log.warning(f"Git state corrupted/locked, re-cloning {repo_config.name}...")
+                shutil.rmtree(repo_path, ignore_errors=True)
                 return clone_or_pull(repo_config, base_dir, depth)
             log.error(f"Failed to pull {repo_config.name}: {e}")
             raise
