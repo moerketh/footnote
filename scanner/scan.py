@@ -90,13 +90,25 @@ def clone_or_pull(repo_config: RepoConfig, base_dir: str = "/data/repos",
     if repo_path.exists() and (repo_path / ".git").exists():
         log.info(f"Pulling latest for {repo_config.name}...")
         repo = Repo(repo_path)
+
+        # Clean up stale lock files from previous crashes
+        lock_files = [
+            repo_path / ".git" / "index.lock",
+            repo_path / ".git" / "shallow.lock",
+            repo_path / ".git" / "HEAD.lock",
+        ]
+        for lock_file in lock_files:
+            if lock_file.exists():
+                lock_file.unlink()
+                log.debug(f"Removed stale lock file: {lock_file}")
+
         origin = repo.remotes.origin
         try:
             origin.fetch(depth=depth)
             repo.git.reset("--hard", f"origin/{repo_config.branch}")
         except GitCommandError as e:
             err_str = str(e)
-            if "inflate" in err_str or "pack" in err_str or "shallow.lock" in err_str:
+            if "inflate" in err_str or "pack" in err_str or "lock" in err_str:
                 log.warning(f"Git state corrupted/locked, re-cloning {repo_config.name}...")
                 shutil.rmtree(repo_path, ignore_errors=True)
                 return clone_or_pull(repo_config, base_dir, depth)
